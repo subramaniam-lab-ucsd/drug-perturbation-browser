@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+/* Scan the pages and components for class names. */
+@source "./";
+@source "./components/";
+
+/* ---------------------------------------------------------------------------
+   Design tokens. The data palette stays Okabe-Ito so charts match the
+   matplotlib figures in results/figures; the UI palette is a neutral slate with
+   one brand blue drawn from the same family as the data blue.
+   --------------------------------------------------------------------------- */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-brand-50:  #eef7fc;
+  --color-brand-100: #d6ecf8;
+  --color-brand-200: #aed9f1;
+  --color-brand-300: #78c0e7;
+  --color-brand-400: #3ba0d8;
+  --color-brand-500: #0f82c2;
+  --color-brand-600: #0072B2;   /* Okabe-Ito blue, the anchor */
+  --color-brand-700: #005b8f;
+  --color-brand-800: #004a75;
+  --color-brand-900: #003c5f;
+
+  --color-accent-500: #D55E00;  /* Okabe-Ito vermillion: carriers, highlights */
+  --color-accent-600: #b84f00;
+
+  --color-ink-50:  #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+}

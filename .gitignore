@@ -1,0 +1,12 @@
+node_modules/
+dist/
+src/.observablehq/
+# generated from src/tw.css by the tailwind step in build.sh
+src/tailwind.css
+loaders/__pycache__/
+
+# Per-drug detail, 444 MB for the full panel, written by ./refresh.sh detail.
+# The 20 drugs in dev-drugs.txt are committed anyway: a file that is already
+# tracked stays tracked, so `git status` is quiet after a full refresh and the
+# other 1065 files never reach a commit.
+src/detail/

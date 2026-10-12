@@ -1,0 +1,38 @@
+{
+  "name": "drug-perturbation-browser",
+  "version": "1.0.0",
+  "description": "A browser over pooled chemical-perturbation atlases: differential expression and transcription factor activity by drug, cell line and concentration.",
+  "main": "index.js",
+  "scripts": {
+    "build": "./build.sh",
+    "deploy": "./deploy.sh",
+    "refresh": "./refresh.sh",
+    "preview": "npx @tailwindcss/cli -i src/tw.css -o src/tailwind.css --minify && observable preview",
+    "serve": "node serve.mjs",
+    "test": "node check.mjs && node check_pages.mjs",
+    "css": "npx @tailwindcss/cli -i src/tw.css -o src/tailwind.css --minify",
+    "clean": "rm -rf dist src/.observablehq src/tailwind.css"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@observablehq/framework": "^1.13.4"
+  },
+  "allowScripts": {
+    "esbuild@0.27.7": true,
+    "esbuild@0.28.2": true,
+    "puppeteer@25.12.0": true
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "puppeteer": "^25.12.0",
+    "tailwindcss": "^4.3.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/subramaniam-lab-ucsd/drug-perturbation-browser.git"
+  }
+}

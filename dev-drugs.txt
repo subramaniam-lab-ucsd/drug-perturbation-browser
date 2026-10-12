@@ -1,0 +1,38 @@
+# Drugs whose per-drug detail is committed, so the browser is usable and
+# testable from a plain clone. The other 359 are fetched from a full build.
+#
+# These are not optional. check.mjs drives Adagrasib, Dabrafenib, Trametinib
+# and Panobinostat by name, and its multi-drug case drives the six RAS-pathway
+# drugs below. The landing page derives its example chips from the data, which
+# picks the specific-genotype drug (Adagrasib) and the three largest responses
+# (Panobinostat, Homoharringtonine, Dinaciclib). Dropping any of them turns a
+# test red or leaves a dead chip on the front page.
+Adagrasib
+Panobinostat
+Homoharringtonine
+Dinaciclib
+Dabrafenib
+Trametinib
+BI-3406
+RMC-6236
+Lonafarnib
+Binimetinib
+# A spread of mechanisms, so the similarity and genotype tabs have something
+# real to compare.
+Vemurafenib
+Encorafenib
+Cobimetinib
+Selinexor
+Bortezomib
+Rapamycin
+Gemcitabine
+Paclitaxel
+Sunitinib
+Ponatinib
+Doxorubicin__hydrochloride_
+# check_preview.mjs drives these three deliberately: a Greek letter, a
+# superscript, and parentheses in the name, which is how URL encoding of a drug
+# name gets tested. The filenames are the sanitised forms.
+18β-Glycyrrhetinic_acid
+γ-Oryzanol
+_R_-Verapamil__hydrochloride_
