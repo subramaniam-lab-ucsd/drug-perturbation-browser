@@ -330,6 +330,52 @@ a.go.is-disabled { background: var(--color-ink-300); pointer-events: none; box-s
 
 .result-head .sub { font-size: 13.5px; color: var(--color-ink-900); margin: 5px 0 0; }
 
+/* ---- query peek: the counts in the header open the names behind them ----- */
+/* The <details> is the anchor, so the body hangs off the count that was
+   clicked rather than off the header, and the header must not clip it. */
+.result-head { position: relative; }
+.peek { display: inline-block; position: relative; }
+.peek > summary { display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+                  list-style: none; border-bottom: 1px dashed var(--color-ink-400); }
+.peek > summary::-webkit-details-marker { display: none; }
+.peek > summary::marker { content: ""; }
+.peek > summary:hover, .peek[open] > summary { color: var(--color-brand-600);
+                                               border-bottom-color: var(--color-brand-600); }
+.peek > summary:focus-visible { outline: 2px solid var(--color-brand-600); outline-offset: 3px; }
+.peek > summary .ico { flex: none; transition: transform .12s ease; }
+.peek[open] > summary .ico { transform: rotate(180deg); }
+.peek-body { position: absolute; z-index: 40; top: calc(100% + 8px); left: 0;
+             width: min(540px, 88vw); background: var(--surface);
+             border: 1px solid var(--color-ink-200); border-radius: 12px;
+             box-shadow: 0 12px 32px rgba(15,23,42,.14); padding: 12px 13px 13px;
+             font-size: 13.5px; font-weight: 400; letter-spacing: 0; cursor: auto; }
+.peek-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+          font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+          color: var(--color-ink-900); margin-bottom: 9px; }
+.peek-h span { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;
+               color: var(--color-ink-900); }
+.peek-f { width: 100%; margin-bottom: 9px; padding: 7px 10px; font-size: 13.5px;
+          border: 1px solid var(--color-ink-300); border-radius: 9px;
+          background: var(--surface); color: var(--color-ink-900); }
+.peek-f:focus { outline: none; border-color: var(--color-brand-600);
+                box-shadow: 0 0 0 3px var(--color-brand-100); }
+/* Wraps rather than scrolls sideways, and caps its height so that 379 drugs
+   open a scrollable box instead of a column taller than the window. */
+.peek-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 264px; overflow-y: auto; }
+.result-head .peek-item, .result-head .peek-item:visited { color: var(--color-ink-900); }
+.result-head .peek-item:hover { color: var(--color-brand-700); }
+.peek-item { display: inline-flex; align-items: baseline; gap: 5px; max-width: 100%;
+             padding: 4px 9px; border: 1px solid var(--line); border-radius: 999px;
+             background: var(--surface); font-size: 13px; font-weight: 500;
+             color: var(--color-ink-900); text-decoration: none; }
+.peek-item:hover { border-color: var(--color-brand-600); color: var(--color-brand-700);
+                   text-decoration: none; }
+.peek-item .ico-organ { align-self: center; }
+.peek-n { white-space: nowrap; }
+.peek-s { font-size: 11.5px; font-weight: 400; color: var(--color-ink-900);
+          max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.peek-none { font-size: 13px; color: var(--color-ink-900); padding: 6px 2px; }
+
 /* Label above value, several per row: reads better than a two-column list in a
    half-width panel, and does not fight Framework's own <dl> rule. */
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(146px, 1fr));

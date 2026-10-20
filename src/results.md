@@ -22,9 +22,9 @@ const manifest = FileAttachment("data/manifest.json").json();
 import * as Plot from "npm:@observablehq/plot";
 import {tableFromIPC} from "npm:apache-arrow";
 import {rows} from "./components/util.js";
-import {decode, pointerTip, pearson, doseKey, doseSetOf} from "./components/query.js";
+import {decode, encode, pointerTip, pearson, doseKey, doseSetOf} from "./components/query.js";
 import {BLUE, ORANGE, GREY} from "./components/palette.js";
-import {organIcon, pencil} from "./components/icons.js";
+import {organIcon, pencil, caret} from "./components/icons.js";
 import {tabs, showTab} from "./components/tabs.js";
 import {comboBox} from "./components/combobox.js";
 
@@ -71,15 +71,99 @@ const HALF = Math.floor((PANEL - 20) / 2);
 ```
 
 ```js
-display(htl.html`<div class="result-head">
-  <div>
-    <h1>${Q.labelDrug}</h1>
-    <p class="sub">${Q.labelDose} · ${nLinesWithData === lines.length ? "all cell lines"
-    : nLinesWithData === 1 ? perLine[0].name
-    : `${nLinesWithData} cell lines`} · ${sel.length.toLocaleString()} measurements</p>
-  </div>
-  <a class="btn-ghost" href=${"./?" + location.search.slice(1)}>${pencil()}Edit query</a>
-</div>`)
+// "47 cell lines" is the only place the page says what the query actually
+// covers, and a reader who wants the names had to go back to the form to see
+// them. Make the count itself open a list of what it stands for.
+//
+// A native <details> rather than a hand-rolled menu: keyboard, focus and
+// screen-reader behaviour come for free, and it degrades to an open list with
+// no JS. The body is positioned over the page rather than inline so that
+// opening it does not push every panel down. Each entry narrows the query to
+// that one drug or cell line, which is the thing a reader reaches for next.
+//
+// One shape for any number: below two entries there is nothing to reveal and
+// the summary stays plain text, and past a couple of dozen the list gets a
+// filter, so 1 drug × 1 line and 379 drugs × 48 lines are the same control.
+const FILTER_FROM = 18;
+function peek(summary, items, {title, kind}) {
+  if (items.length < 2) return summary;
+  // Appended rather than interpolated: htl wraps each element of an array in a
+  // <span>, which would make the spans the flex items and the pills their
+  // contents, and put a layer between the filter and what it hides.
+  const list = htl.html`<div class="peek-list"></div>`;
+  list.append(...items.map((it) => htl.html`<a class="peek-item" href=${it.href}
+    data-k=${(it.name + " " + (it.note ?? "")).toLowerCase()} title=${it.hint ?? ""}
+    >${it.icon ?? ""}<span class="peek-n">${it.name}</span>${
+      it.note ? htl.html`<span class="peek-s">${it.note}</span>` : ""}</a>`));
+  const filter = items.length >= FILTER_FROM
+    ? htl.html`<input class="peek-f" type="search" placeholder=${`Filter ${kind}…`}
+        oninput=${(e) => {
+          const q = e.currentTarget.value.trim().toLowerCase();
+          let n = 0;
+          for (const el of list.children) {
+            const hit = !q || el.dataset.k.includes(q);
+            el.hidden = !hit;
+            if (hit) n++;
+          }
+          none.hidden = n > 0;
+        }}>`
+    : "";
+  const none = htl.html`<div class="peek-none" hidden>Nothing matches.</div>`;
+  return htl.html`<details class="peek">
+    <summary>${summary}${caret({size: 12})}</summary>
+    <div class="peek-body">
+      <div class="peek-h">${title}<span>narrow the query to one</span></div>
+      ${filter}${list}${none}
+    </div>
+  </details>`;
+}
+
+// Keep the dose and the other half of the query; replace only this axis.
+const narrowTo = (part) => "?" + encode({
+  drugs: Q.drugKeys, lines: Q.lineKeys, doses: Q.allDoses ? [] : Q.doses, ...part});
+```
+
+```js
+// Once, not per render: the block has no reactive inputs, so it is not re-run.
+document.addEventListener("click", (e) => {
+  for (const d of document.querySelectorAll("details.peek[open]"))
+    if (!d.contains(e.target)) d.open = false;
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  for (const d of document.querySelectorAll("details.peek[open]")) d.open = false;
+});
+```
+
+```js
+display((() => {
+  // Drugs and cell lines that the query actually returned measurements for, so
+  // the list and the count beside it cannot disagree.
+  // "unclear" is the placeholder in drugs.arrow for an unannotated mechanism;
+  // as a note beside 300 names it reads as a column of noise.
+  const moa = (d) => { const m = byDrug.get(d)?.moa; return !m || m === "unclear" ? "" : m; };
+  const drugItems = selDrugs.map((d) => ({
+    name: d, note: moa(d), hint: byDrug.get(d)?.targets ?? "",
+    href: narrowTo({drugs: [d]})}));
+  const lineItems = perLine.slice().sort((a, b) => d3.ascending(a.name, b.name))
+    .map((l) => ({
+      name: l.name, note: l.organ, icon: organIcon(l.organ),
+      hint: `${l.n_deg.toLocaleString()} genes changed (median)`,
+      href: narrowTo({lines: [l.cell_line]})}));
+  return htl.html`<div class="result-head">
+    <div>
+      <h1>${peek(Q.labelDrug, drugItems,
+        {title: `${drugItems.length.toLocaleString()} drugs in this query`, kind: "drugs"})}</h1>
+      <div class="sub">${Q.labelDose} · ${peek(
+        nLinesWithData === lines.length ? "all cell lines"
+        : nLinesWithData === 1 ? perLine[0].name
+        : `${nLinesWithData} cell lines`, lineItems,
+        {title: `${lineItems.length} cell lines in this query`, kind: "cell lines"})
+      } · ${sel.length.toLocaleString()} measurement${sel.length === 1 ? "" : "s"}</div>
+    </div>
+    <a class="btn-ghost" href=${"./?" + location.search.slice(1)}>${pencil()}Edit query</a>
+  </div>`;
+})())
 ```
 
 ```js
@@ -169,7 +253,153 @@ showTab(tab);
 
 <div class="dash tabpanel" data-tab="overview">
 
+<aside class="panel">
+  <div class="panel-h">Query summary</div>
+
+```js
+const facts = (() => {
+  // A contrast is one drug in one cell line at one concentration. Every figure
+  // is taken over the contrasts the query actually returned, so a cell line
+  // asked for but not assayed never appears in a denominator.
+  const n = sel.length;
+  const deg = sel.map((c) => c.n_deg);
+  const up = d3.sum(sel, (c) => c.n_up), down = d3.sum(sel, (c) => c.n_down);
+  const strongest = n ? d3.greatest(sel, (c) => c.n_deg) : null;
+  const q = (v) => v.toLocaleString();
+  return [
+    ["Drugs", q(selDrugs.length), ""],
+    ["Cell lines", String(nLinesWithData), ""],
+    ["Concentration", Q.doses.map((d) => `${d}`).join(", ") + " µM", ""],
+    ["Contrasts returned", q(n), "drug × cell line × concentration"],
+    ["Responsive contrasts", n ? `${Math.round(100 * nResp / n)}%` : "0%",
+     `${q(nResp)} with at least one DE gene`],
+    ["Median DE genes", n ? q(d3.median(deg)) : "\u2014", "per contrast"],
+    ["Interquartile range", n ? `${q(Math.round(d3.quantile(deg.slice().sort(d3.ascending), .25)))}`
+       + `\u2013${q(Math.round(d3.quantile(deg.slice().sort(d3.ascending), .75)))}` : "\u2014",
+     "DE genes per contrast"],
+    ["Maximum DE genes", n ? q(d3.max(deg)) : "\u2014",
+     strongest ? `${nameOf(strongest.cell_line)}${selDrugs.length > 1 ? `, ${strongest.drug}` : ""}` : ""],
+    ["Induced : repressed", up + down ? `${Math.round(100 * up / (up + down))} : `
+       + `${100 - Math.round(100 * up / (up + down))}` : "\u2014",
+     "across all DE genes returned"],
+    ...(one && byDrug.get(one)?.moa ? [["Annotated mechanism", byDrug.get(one).moa, ""]] : []),
+    ...(one && byDrug.get(one)?.targets ? [["Annotated targets", byDrug.get(one).targets, ""]] : [])
+  ];
+})();
+// One element per fact rather than a <dl>: a grid of dt/dd puts the label and
+// the value in different columns, and Framework's own dl rule wins anyway.
+display(htl.html`<p class="caption">Scope of the current query and the genotype
+  verdict it supports. Every figure below is computed over the
+  ${sel.length.toLocaleString()} contrast${sel.length === 1 ? "" : "s"} actually
+  returned, not the full panel.</p>
+  <div class="facts">${facts.map(([k, v, n]) => htl.html`
+  <div class="fact"><span class="fact-k">${k}</span>
+    <span class="fact-v">${v}${n ? htl.html` <span class="dim">${n}</span>` : ""}</span>
+  </div>`)}</div>`)
+```
+
+```js
+display((() => {
+  if (!one) return nothing();
+  if (!verdict) return nothing();
+  const [label, cls] = VERDICT[verdict.verdict] ?? [verdict.verdict, ""];
+  const axes = verdict.axes ? verdict.axes.split(", ") : [];
+  return htl.html`<div class="split ${cls}">
+    <div class="split-h">${label}</div>
+    ${bestRow ? htl.html`<p class="verdict-genotype">${bestRow.gene} ${bestRow.alteration}</p>` : ""}
+    <p class="caption">${verdict.reason[0].toUpperCase() + verdict.reason.slice(1)}.</p>
+    ${axes.length ? htl.html`<p class="caption">Supported by
+      ${axes.length === 1 ? "" : "all three measures: "}${axes.join(", ")}.</p>` : ""}
+    ${/* CAUTION BANNER, TEMPORARILY OFF. Restore together with the one in the
+          similarity panel and with the two assertions in check.mjs that are
+          commented out beside them.
+       bestRow?.lineage_confounded ? htl.html`<p class="caution">Carriers come from
+         ${bestRow.organs}, so tissue of origin cannot be fully separated from the
+         mutation here.</p>` : "" */ ""}
+  </div>`;
+})())
+```
+
+</aside>
+
 <section class="panel">
+  <div class="panel-h">Oncogenic genotype of the selected cell lines</div>
+
+```js
+display((() => {
+  // lines that actually carry a measurement, so this agrees with the header
+  const withData = new Set(sel.map((c) => c.cell_line));
+  const d = drivers.filter((x) => withData.has(x.cell_line));
+  if (!d.length) return htl.html`<div class="empty">No DepMap annotation for these lines.</div>`;
+  const onco = d.filter((x) => x.role === "Oncogene");
+  const g = d3.rollups(d, (v) => ({
+      lines: new Set(v.map((x) => x.cell_line)).size, role: v[0].role,
+      changes: Array.from(new Set(v.map((x) => x.protein_change).filter(Boolean))).slice(0, 6).join(", "),
+      examples: Array.from(new Set(v.map((x) => x.name))).slice(0, 8).join(", ")}),
+    (x) => x.gene).map(([gene, s]) => ({gene, ...s}))
+    .sort((a, b) => b.lines - a.lines).slice(0, 24);
+  // A cell listing every alteration ran the table to 6,000px. Clip it and
+  // keep the whole string in the title, which is where a long list belongs.
+  const clip = (v, n = 40) => {
+    const el = htl.html`<span title=${v}>${v.length > n ? v.slice(0, n - 1) + "\u2026" : v}</span>`;
+    return el;
+  };
+  const table = Array.from(d3.group(d, (x) => x.name), ([name, v]) => ({
+    "cell line": name, tissue: v[0].organ,
+    DepMap: v[0].depmap || "\u2014",
+    oncogenes: v.filter((x) => x.role === "Oncogene")
+      .map((x) => x.protein_change || x.variant ? `${x.gene} ${x.protein_change || x.variant}` : x.gene).join(", "),
+    "tumour suppressors": v.filter((x) => x.role === "Suppressor")
+      .map((x) => x.protein_change || x.variant ? `${x.gene} ${x.protein_change || x.variant}` : x.gene).join(", ")
+  })).sort((a, b) => a["cell line"].localeCompare(b["cell line"]));
+  return htl.html`<p class="caption">Cancer driver genes annotated as mutated in the
+    selected lines: ${new Set(onco.map((x) => x.gene)).size} oncogenes, which confer a
+    gain of function when altered, and
+    ${new Set(d.filter((x) => x.role === "Suppressor").map((x) => x.gene)).size} tumour
+    suppressors, which confer a loss of function, across
+    ${new Set(d.map((x) => x.cell_line)).size} cell lines. These annotations define the
+    strata used under <b>Genotype Specificity</b>.</p>
+    ${method(htl.html`DepMap driver calls as shipped with Tahoe-100M. Role is
+    <code>Driver_GeneType_DM</code>; the protein consequence is
+    <code>Driver_ProtEffect_or_CdnaEffect</code> where annotated, otherwise the variant
+    class. Only oncogene genotypes carried by at least two assayed cell lines enter the
+    tests, which is 12 of them.`)}
+    ${Plot.plot({
+        width: HALF,
+        height: Math.max(200, g.length * 16 + 50), marginLeft: 94, marginRight: 20,
+        style: {fontSize: "11px"},
+        x: {label: "cell lines carrying the alteration", labelAnchor: "center", grid: true},
+        y: {domain: g.map((x) => x.gene), label: null},
+        color: {domain: ["Oncogene", "Suppressor"], range: [ORANGE, GREY], legend: true},
+        marks: [
+          Plot.barX(g, {y: "gene", x: "lines", fill: "role", rx: 3,
+                        insetTop: 1, insetBottom: 1}),
+          pointerTip(g, {mode: "y", x: "lines", y: "gene", fields: {
+            "": (x) => x.gene, "Role": (x) => x.role.toLowerCase(),
+            "Cell lines": (x) => String(x.lines),
+            "Protein change": (x) => x.changes || null,
+            "Examples": (x) => x.examples}}),
+          Plot.ruleX([0])
+        ]})}
+    <div class="subpanel">
+      <div class="sub-h">Annotated alterations per cell line</div>
+      <div>${Inputs.table(table, {rows: 11, height: 340, select: false,
+        // half-width panel now: fixed columns that sum inside it, rather than
+        // auto layout running the table out to 1,000px behind a scrollbar
+        layout: "fixed", maxWidth: HALF - 28,
+        width: {"cell line": 104, tissue: 92, DepMap: 74,
+                oncogenes: 126, "tumour suppressors": 126},
+        format: {
+          "cell line": (v) => htl.html`<b>${v}</b>`,
+          tissue: (v) => htl.html`<span class="organ">${organIcon(v)}${v}</span>`,
+          oncogenes: (v) => clip(v), "tumour suppressors": (v) => clip(v)},
+        header: {DepMap: "ID"}})}</div>
+    </div>`;
+})())
+```
+</section>
+
+<section class="panel span2">
   <div class="panel-h">Differential expression magnitude by cell line</div>
 
 ```js
@@ -269,75 +499,6 @@ display((() => {
 })())
 ```
 </section>
-
-<aside class="panel">
-  <div class="panel-h">Query summary</div>
-
-```js
-const facts = (() => {
-  // A contrast is one drug in one cell line at one concentration. Every figure
-  // is taken over the contrasts the query actually returned, so a cell line
-  // asked for but not assayed never appears in a denominator.
-  const n = sel.length;
-  const deg = sel.map((c) => c.n_deg);
-  const up = d3.sum(sel, (c) => c.n_up), down = d3.sum(sel, (c) => c.n_down);
-  const strongest = n ? d3.greatest(sel, (c) => c.n_deg) : null;
-  const q = (v) => v.toLocaleString();
-  return [
-    ["Drugs", q(selDrugs.length), ""],
-    ["Cell lines", String(nLinesWithData), ""],
-    ["Concentration", Q.doses.map((d) => `${d}`).join(", ") + " µM", ""],
-    ["Contrasts returned", q(n), "drug × cell line × concentration"],
-    ["Responsive contrasts", n ? `${Math.round(100 * nResp / n)}%` : "0%",
-     `${q(nResp)} with at least one DE gene`],
-    ["Median DE genes", n ? q(d3.median(deg)) : "\u2014", "per contrast"],
-    ["Interquartile range", n ? `${q(Math.round(d3.quantile(deg.slice().sort(d3.ascending), .25)))}`
-       + `\u2013${q(Math.round(d3.quantile(deg.slice().sort(d3.ascending), .75)))}` : "\u2014",
-     "DE genes per contrast"],
-    ["Maximum DE genes", n ? q(d3.max(deg)) : "\u2014",
-     strongest ? `${nameOf(strongest.cell_line)}${selDrugs.length > 1 ? `, ${strongest.drug}` : ""}` : ""],
-    ["Induced : repressed", up + down ? `${Math.round(100 * up / (up + down))} : `
-       + `${100 - Math.round(100 * up / (up + down))}` : "\u2014",
-     "across all DE genes returned"],
-    ...(one && byDrug.get(one)?.moa ? [["Annotated mechanism", byDrug.get(one).moa, ""]] : []),
-    ...(one && byDrug.get(one)?.targets ? [["Annotated targets", byDrug.get(one).targets, ""]] : [])
-  ];
-})();
-// One element per fact rather than a <dl>: a grid of dt/dd puts the label and
-// the value in different columns, and Framework's own dl rule wins anyway.
-display(htl.html`<p class="caption">Scope of the current query and the genotype
-  verdict it supports. Every figure below is computed over the
-  ${sel.length.toLocaleString()} contrast${sel.length === 1 ? "" : "s"} actually
-  returned, not the full panel.</p>
-  <div class="facts">${facts.map(([k, v, n]) => htl.html`
-  <div class="fact"><span class="fact-k">${k}</span>
-    <span class="fact-v">${v}${n ? htl.html` <span class="dim">${n}</span>` : ""}</span>
-  </div>`)}</div>`)
-```
-
-```js
-display((() => {
-  if (!one) return nothing();
-  if (!verdict) return nothing();
-  const [label, cls] = VERDICT[verdict.verdict] ?? [verdict.verdict, ""];
-  const axes = verdict.axes ? verdict.axes.split(", ") : [];
-  return htl.html`<div class="split ${cls}">
-    <div class="split-h">${label}</div>
-    ${bestRow ? htl.html`<p class="verdict-genotype">${bestRow.gene} ${bestRow.alteration}</p>` : ""}
-    <p class="caption">${verdict.reason[0].toUpperCase() + verdict.reason.slice(1)}.</p>
-    ${axes.length ? htl.html`<p class="caption">Supported by
-      ${axes.length === 1 ? "" : "all three measures: "}${axes.join(", ")}.</p>` : ""}
-    ${/* CAUTION BANNER, TEMPORARILY OFF. Restore together with the one in the
-          similarity panel and with the two assertions in check.mjs that are
-          commented out beside them.
-       bestRow?.lineage_confounded ? htl.html`<p class="caution">Carriers come from
-         ${bestRow.organs}, so tissue of origin cannot be fully separated from the
-         mutation here.</p>` : "" */ ""}
-  </div>`;
-})())
-```
-
-</aside>
 
 </div>
 
@@ -1152,82 +1313,6 @@ display((() => {
           "Difference": (x) => x.delta_z.toFixed(2)}}),
         Plot.ruleX([0])
       ]})}</div>`;
-})())
-```
-</section>
-
-</div>
-
-<div class="dash tabpanel" data-tab="overview" hidden>
-
-<section class="panel span2">
-  <div class="panel-h">Oncogenic genotype of the selected cell lines</div>
-
-```js
-display((() => {
-  // lines that actually carry a measurement, so this agrees with the header
-  const withData = new Set(sel.map((c) => c.cell_line));
-  const d = drivers.filter((x) => withData.has(x.cell_line));
-  if (!d.length) return htl.html`<div class="empty">No DepMap annotation for these lines.</div>`;
-  const onco = d.filter((x) => x.role === "Oncogene");
-  const g = d3.rollups(d, (v) => ({
-      lines: new Set(v.map((x) => x.cell_line)).size, role: v[0].role,
-      changes: Array.from(new Set(v.map((x) => x.protein_change).filter(Boolean))).slice(0, 6).join(", "),
-      examples: Array.from(new Set(v.map((x) => x.name))).slice(0, 8).join(", ")}),
-    (x) => x.gene).map(([gene, s]) => ({gene, ...s}))
-    .sort((a, b) => b.lines - a.lines).slice(0, 24);
-  // A cell listing every alteration ran the table to 6,000px. Clip it and
-  // keep the whole string in the title, which is where a long list belongs.
-  const clip = (v, n = 40) => {
-    const el = htl.html`<span title=${v}>${v.length > n ? v.slice(0, n - 1) + "\u2026" : v}</span>`;
-    return el;
-  };
-  const table = Array.from(d3.group(d, (x) => x.name), ([name, v]) => ({
-    "cell line": name, tissue: v[0].organ,
-    DepMap: v[0].depmap || "\u2014",
-    oncogenes: v.filter((x) => x.role === "Oncogene")
-      .map((x) => x.protein_change || x.variant ? `${x.gene} ${x.protein_change || x.variant}` : x.gene).join(", "),
-    "tumour suppressors": v.filter((x) => x.role === "Suppressor")
-      .map((x) => x.protein_change || x.variant ? `${x.gene} ${x.protein_change || x.variant}` : x.gene).join(", ")
-  })).sort((a, b) => a["cell line"].localeCompare(b["cell line"]));
-  return htl.html`<p class="caption">Cancer driver genes annotated as mutated in the
-    selected lines: ${new Set(onco.map((x) => x.gene)).size} oncogenes, which confer a
-    gain of function when altered, and
-    ${new Set(d.filter((x) => x.role === "Suppressor").map((x) => x.gene)).size} tumour
-    suppressors, which confer a loss of function, across
-    ${new Set(d.map((x) => x.cell_line)).size} cell lines. These annotations define the
-    strata used under <b>Genotype Specificity</b>.</p>
-    ${method(htl.html`DepMap driver calls as shipped with Tahoe-100M. Role is
-    <code>Driver_GeneType_DM</code>; the protein consequence is
-    <code>Driver_ProtEffect_or_CdnaEffect</code> where annotated, otherwise the variant
-    class. Only oncogene genotypes carried by at least two assayed cell lines enter the
-    tests, which is 12 of them.`)}
-    ${Plot.plot({
-        width: Math.min(PANEL, 620),
-        height: Math.max(200, g.length * 16 + 50), marginLeft: 94, marginRight: 20,
-        style: {fontSize: "11px"},
-        x: {label: "cell lines carrying the alteration", labelAnchor: "center", grid: true},
-        y: {domain: g.map((x) => x.gene), label: null},
-        color: {domain: ["Oncogene", "Suppressor"], range: [ORANGE, GREY], legend: true},
-        marks: [
-          Plot.barX(g, {y: "gene", x: "lines", fill: "role", rx: 3,
-                        insetTop: 1, insetBottom: 1}),
-          pointerTip(g, {mode: "y", x: "lines", y: "gene", fields: {
-            "": (x) => x.gene, "Role": (x) => x.role.toLowerCase(),
-            "Cell lines": (x) => String(x.lines),
-            "Protein change": (x) => x.changes || null,
-            "Examples": (x) => x.examples}}),
-          Plot.ruleX([0])
-        ]})}
-    <div class="subpanel">
-      <div class="sub-h">Annotated alterations per cell line</div>
-      <div class="scrollx">${Inputs.table(table, {rows: 11, height: 340,
-        layout: "auto", format: {
-          "cell line": (v) => htl.html`<b>${v}</b>`,
-          tissue: (v) => htl.html`<span class="organ">${organIcon(v)}${v}</span>`,
-          oncogenes: (v) => clip(v), "tumour suppressors": (v) => clip(v)},
-        header: {DepMap: "ID"}})}</div>
-    </div>`;
 })())
 ```
 </section>

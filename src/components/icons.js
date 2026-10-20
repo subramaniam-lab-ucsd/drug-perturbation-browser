@@ -83,3 +83,5 @@ export function organIcon(organ, o) {
 export const pencil = (o) => icon("M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z", o);
 /** A right chevron, for links that go somewhere. */
 export const arrow = (o) => icon("M6 3.5L10.5 8 6 12.5", o);
+/** A down chevron, for a control that opens something in place. */
+export const caret = (o) => icon("M3.5 6L8 10.5 12.5 6", o);

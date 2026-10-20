@@ -132,7 +132,10 @@ let t = await text();
 ck("names the drug", t.includes("Adagrasib"));
 // the direction split, and that the two arms reconcile with the total
 ck("response chart splits induced from repressed", await page.evaluate(() => {
-  const p = [...document.querySelectorAll(".tabpanel:not([hidden]) .panel")][0];
+  // by heading, not by position: the overview panels are laid out summary and
+  // genotype on top, this chart full width beneath them
+  const p = [...document.querySelectorAll(".tabpanel:not([hidden]) .panel")]
+    .find((x) => /magnitude by cell line/.test(x.querySelector(".panel-h")?.textContent ?? ""));
   // Plot puts the colour legend in an HTML figure beside the svg, not in it
   const leg = p.textContent;
   const bars = p.querySelectorAll("svg g[aria-label='bar'] rect").length;
@@ -141,6 +144,32 @@ ck("response chart splits induced from repressed", await page.evaluate(() => {
 }));
 ck("control is named as untreated DMSO",
    /untreated DMSO control/i.test(t) && !/vehicle/i.test(t), (t.match(/vehicle/i) ?? [])[0]);
+// ---- the header counts open what they stand for -------------------------
+// One drug and 47 cell lines: the title is a plain name, the count is a peek.
+ck("the drug title is not a peek with one drug",
+   await page.$$eval(".result-head h1 details.peek", (e) => e.length) === 0);
+ck("the cell line count opens a list", await count(".result-head .sub details.peek") === 1);
+ck("the peek names every selected line",
+   await count(".result-head .sub .peek-item") === 47);
+ck("a peek entry narrows the query to that line", await page.$eval(
+  ".result-head .sub .peek-item", (e) => {
+    const p = new URLSearchParams(e.getAttribute("href").slice(1));
+    return p.get("d") === "Adagrasib" && p.get("dose") === "0.5"
+        && (p.get("l") ?? "").split(",").length === 1;
+  }));
+// A list of 47 gets a filter; the filter hides, it does not reorder
+await page.evaluate(() => document.querySelector(".result-head .sub .peek > summary").click());
+await new Promise((r) => setTimeout(r, 200));
+ck("the peek opens on click", await count(".result-head details.peek[open]") === 1);
+await page.type(".result-head .peek-f", "pancreas");
+await new Promise((r) => setTimeout(r, 300));
+const peeked = await page.$$eval(".result-head .peek-item",
+  (e) => e.filter((x) => !x.hidden).map((x) => x.querySelector(".peek-n").textContent));
+ck("the filter narrows the list", peeked.length > 0 && peeked.length < 47
+   && peeked.includes("MIA PaCa-2"), peeked.join(", "));
+await page.evaluate(() => document.body.click());
+await new Promise((r) => setTimeout(r, 200));
+ck("a click outside closes the peek", await count("details.peek[open]") === 0);
 ck("edit query button, with a pencil",
    (await page.$eval(".btn-ghost", (e) => e.textContent.trim())) === "Edit query"
    && await count(".btn-ghost svg.ico") === 1);
@@ -474,7 +503,10 @@ ck("both correlation matrices drawn",
 // centring must recompute both matrices, not just relabel them
 const before = await page.$eval(".two-up .legend-line", (e) => e.textContent);
 await page.evaluate(() => {
-  const b = [...document.querySelectorAll('.dash input[type="checkbox"]')][0];
+  // the centring toggle, by its label: other panels carry checkboxes too
+  const b = [...document.querySelectorAll('.dash input[type="checkbox"]')]
+    .find((x) => /per-feature mean/.test(x.closest("label")?.textContent ?? ""))
+    ?? [...document.querySelectorAll('.dash input[type="checkbox"]')][0];
   b.click();
 });
 await new Promise((r) => setTimeout(r, 3000));
