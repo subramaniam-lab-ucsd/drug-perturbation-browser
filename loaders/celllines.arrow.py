@@ -9,6 +9,9 @@ g = (c[c.dose == 0.5].groupby("cell_line", observed=True)
 g["cell_line"] = g.cell_line.astype(str)
 g["name"] = g.cell_line.map(NAME).fillna(g.cell_line)
 g["organ"] = g.cell_line.map(ORGAN).fillna("unknown")
+# The browser keys cell lines by Cellosaurus accession, which DepMap does not
+# resolve. Carry the DepMap ACH id so a line can be linked to its portal page.
+g["depmap"] = g.cell_line.map(one.Cell_ID_DepMap.astype(str)).fillna("")
 sub = lm[lm.Cell_ID_Cellosaur.isin(set(g.cell_line))]
 drv = (sub.assign(d=sub.Driver_Gene_Symbol.astype(str))
           .groupby("Cell_ID_Cellosaur").d.apply(lambda s: ", ".join(sorted(set(s)))))

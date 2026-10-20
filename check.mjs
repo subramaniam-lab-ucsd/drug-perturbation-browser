@@ -152,7 +152,7 @@ ck("the cell line count opens a list", await count(".result-head .sub details.pe
 ck("the peek names every selected line",
    await count(".result-head .sub .peek-item") === 47);
 ck("a peek entry narrows the query to that line", await page.$eval(
-  ".result-head .sub .peek-item", (e) => {
+  ".result-head .sub .peek-go", (e) => {
     const p = new URLSearchParams(e.getAttribute("href").slice(1));
     return p.get("d") === "Adagrasib" && p.get("dose") === "0.5"
         && (p.get("l") ?? "").split(",").length === 1;
@@ -173,6 +173,20 @@ ck("a click outside closes the peek", await count("details.peek[open]") === 0);
 ck("edit query button, with a pencil",
    (await page.$eval(".btn-ghost", (e) => e.textContent.trim())) === "Edit query"
    && await count(".btn-ghost svg.ico") === 1);
+// ---- outside references -------------------------------------------------
+ck("the drug title links to PubChem", await page.$eval(".result-head h1 .ext",
+  (e) => /pubchem\.ncbi\.nlm\.nih\.gov\/compound\/\d+$/.test(e.href)
+      && e.target === "_blank" && /noopener/.test(e.rel)));
+ck("every cell line in the peek links to DepMap", await page.$$eval(
+  ".result-head .sub .peek-item", (e) => e.length === 47
+    && e.filter((x) => /depmap\.org\/portal\/cell_line\/ACH-\d+$/
+         .test(x.querySelector("a.ext")?.href ?? "")).length === 47));
+// the provenance paragraph is gone; /about still carries the build stamp
+ck("no provenance footer on the dashboard", await count(".provenance") === 0);
+// ---- one plain sentence per tab -----------------------------------------
+ck("every tab says what it is for", await page.$$eval(".tab-def",
+  (e) => e.length === 5 && e.every((x) => x.querySelector("b")
+    && x.textContent.trim().length > 60)));
 ck("five tabs", await count(".tab") === 5);
 // Pinned to the labels in results.md. If they are edited there, update here
 // rather than the other way round.
@@ -505,7 +519,7 @@ const before = await page.$eval(".two-up .legend-line", (e) => e.textContent);
 await page.evaluate(() => {
   // the centring toggle, by its label: other panels carry checkboxes too
   const b = [...document.querySelectorAll('.dash input[type="checkbox"]')]
-    .find((x) => /per-feature mean/.test(x.closest("label")?.textContent ?? ""))
+    .find((x) => /differ from one another/.test(x.closest("label")?.textContent ?? ""))
     ?? [...document.querySelectorAll('.dash input[type="checkbox"]')][0];
   b.click();
 });

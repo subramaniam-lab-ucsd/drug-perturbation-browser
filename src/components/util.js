@@ -13,6 +13,17 @@ export const ok = (x) => x != null && typeof x === "number" && Number.isFinite(x
 // null-safe rounding for table cells; returns null so the column stays numeric
 export const num = (x, d = 3) => (ok(x) ? +x.toFixed(d) : null);
 
+// Outside references. A cell line is keyed here by its Cellosaurus accession,
+// which DepMap does not resolve, so celllines.arrow carries the DepMap ACH id
+// beside it; a drug is addressed by the PubChem CID in the Tahoe drug
+// metadata. Either can be absent (one line and two drugs in this panel), and
+// both return null for that, so a name with no id is left unlinked rather than
+// pointed at a search page that may land on the wrong compound.
+export const depmapHref = (id) =>
+  id && id !== "nan" ? `https://depmap.org/portal/cell_line/${id}` : null;
+export const pubchemHref = (cid) =>
+  cid ? `https://pubchem.ncbi.nlm.nih.gov/compound/${cid}` : null;
+
 // both deep-link into the browser, which is the only page that renders an entity
 export const drugHref = (d) => `./?drug=${encodeURIComponent(d)}`;
 export const lineHref = (c) => `./?line=${encodeURIComponent(c)}`;

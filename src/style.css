@@ -251,9 +251,6 @@ a.go.is-disabled { background: var(--color-ink-300); pointer-events: none; box-s
   .logo-lockup .brand-text { font-size: 21px; }
 }
 
-.provenance { font-size: 12.5px; color: var(--color-ink-900); margin: 36px 0 8px;
-               padding-top: 16px; border-top: 1px solid var(--line); }
-
 /* ---- combobox: searchable dropdown with categories ----------------------- */
 /* drugs, cell lines, then concentration. The last sizes to its segmented
    control rather than taking an equal third. */
@@ -330,6 +327,15 @@ a.go.is-disabled { background: var(--color-ink-300); pointer-events: none; box-s
 
 .result-head .sub { font-size: 13.5px; color: var(--color-ink-900); margin: 5px 0 0; }
 
+/* ---- what a tab is for --------------------------------------------------- */
+/* One sentence per tab, in plain words, set apart from the panel captions: the
+   captions describe a figure, this describes the question the tab answers. */
+.tab-def { grid-column: 1 / -1; margin: 0; padding: 12px 17px;
+           border-left: 3px solid var(--color-brand-600); border-radius: 0 11px 11px 0;
+           background: var(--color-brand-50); color: var(--color-ink-900);
+           font-size: 14px; line-height: 1.5; }
+.tab-def b { font-weight: 600; }
+
 /* ---- query peek: the counts in the header open the names behind them ----- */
 /* The <details> is the anchor, so the body hangs off the count that was
    clicked rather than off the header, and the header must not clip it. */
@@ -362,18 +368,26 @@ a.go.is-disabled { background: var(--color-ink-300); pointer-events: none; box-s
 /* Wraps rather than scrolls sideways, and caps its height so that 379 drugs
    open a scrollable box instead of a column taller than the window. */
 .peek-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 264px; overflow-y: auto; }
-.result-head .peek-item, .result-head .peek-item:visited { color: var(--color-ink-900); }
-.result-head .peek-item:hover { color: var(--color-brand-700); }
-.peek-item { display: inline-flex; align-items: baseline; gap: 5px; max-width: 100%;
-             padding: 4px 9px; border: 1px solid var(--line); border-radius: 999px;
+.result-head .peek-go, .result-head .peek-go:visited { color: var(--color-ink-900); }
+.result-head .peek-go:hover { color: var(--color-brand-700); text-decoration: none; }
+.peek-item { display: inline-flex; align-items: center; max-width: 100%;
+             border: 1px solid var(--line); border-radius: 999px;
              background: var(--surface); font-size: 13px; font-weight: 500;
-             color: var(--color-ink-900); text-decoration: none; }
-.peek-item:hover { border-color: var(--color-brand-600); color: var(--color-brand-700);
-                   text-decoration: none; }
+             color: var(--color-ink-900); }
+.peek-item:hover { border-color: var(--color-brand-600); }
 .peek-item .ico-organ { align-self: center; }
 .peek-n { white-space: nowrap; }
 .peek-s { font-size: 11.5px; font-weight: 400; color: var(--color-ink-900);
           max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The link off the site sits beside the name, never around it: one pill, two
+   destinations, and the smaller target is the one that leaves. */
+.ext { display: inline-flex; align-items: center; color: var(--color-ink-400);
+       margin-left: 5px; vertical-align: baseline; }
+.ext:hover { color: var(--color-brand-600); }
+.result-head h1 .ext { margin-left: 8px; }
+.peek-item { padding-right: 7px; }
+.peek-go { display: inline-flex; align-items: baseline; gap: 5px; max-width: 100%;
+           padding: 4px 2px 4px 9px; text-decoration: none; color: inherit; }
 .peek-none { font-size: 13px; color: var(--color-ink-900); padding: 6px 2px; }
 
 /* Label above value, several per row: reads better than a two-column list in a

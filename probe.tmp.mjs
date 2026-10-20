@@ -1,0 +1,30 @@
+import puppeteer from "puppeteer";
+import {createServer} from "node:http";
+import {readFile, stat} from "node:fs/promises";
+import {join, extname} from "node:path";
+const ROOT="dist";
+const M={".html":"text/html",".js":"text/javascript",".css":"text/css",".json":"application/json",".arrow":"application/octet-stream"};
+const srv=createServer(async(q,r)=>{try{let p=decodeURIComponent(new URL(q.url,"http://x").pathname);if(p.endsWith("/"))p+="index.html";let f=join(ROOT,p);try{await stat(f)}catch{f=join(ROOT,p+".html")}const b=await readFile(f);r.writeHead(200,{"content-type":M[extname(f)]??"application/octet-stream"});r.end(b)}catch{r.writeHead(404);r.end("nf")}});
+await new Promise(r=>srv.listen(0,r));const port=srv.address().port;
+const br=await puppeteer.launch({args:["--no-sandbox"]});const page=await br.newPage();
+const errs=[]; page.on("pageerror",e=>errs.push(e.message)); page.on("console",m=>{if(m.type()==="error")errs.push("console: "+m.text())});
+await page.setViewport({width:1500,height:1000});
+const wait=(ms)=>new Promise(r=>setTimeout(r,ms));
+await page.goto(`http://localhost:${port}/results?dose=0.5&d=Adagrasib`,{waitUntil:"networkidle0",timeout:90000}); await wait(4500);
+console.log("h1 ext:", await page.$$eval(".result-head h1 .ext",e=>e.map(x=>x.getAttribute("href"))));
+console.log("tab defs:", await page.$$eval(".tab-def",e=>e.length));
+console.log("provenance gone:", await page.$$eval(".provenance",e=>e.length)===0);
+await page.evaluate(()=>document.querySelector("details.peek summary").click()); await wait(400);
+console.log("pill ext sample:", await page.$$eval(".peek-item .ext",e=>e.slice(0,2).map(x=>x.getAttribute("href"))));
+console.log("pill go sample:", await page.$eval(".peek-item .peek-go",e=>e.getAttribute("href")));
+await page.screenshot({path:"s1.tmp.png",clip:{x:0,y:120,width:1000,height:560}});
+await page.evaluate(()=>document.body.click()); await wait(200);
+// similarity tab
+await page.evaluate(()=>document.querySelector('.tab[data-tab="similarity"]').click()); await wait(2500);
+console.log("toggle label:", await page.$eval('.dash label', e=>e.textContent.trim()).catch(()=>"?"));
+await page.screenshot({path:"s2.tmp.png",clip:{x:0,y:230,width:1500,height:560}});
+// genotype table depmap links
+await page.evaluate(()=>document.querySelector('.tab[data-tab="overview"]').click()); await wait(1500);
+console.log("depmap table links:", await page.$$eval("table a.xref",e=>e.slice(0,2).map(x=>x.getAttribute("href"))));
+console.log("errors:",errs.slice(0,4));
+await br.close();srv.close();

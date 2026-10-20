@@ -85,3 +85,24 @@ export const pencil = (o) => icon("M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z", o);
 export const arrow = (o) => icon("M6 3.5L10.5 8 6 12.5", o);
 /** A down chevron, for a control that opens something in place. */
 export const caret = (o) => icon("M3.5 6L8 10.5 12.5 6", o);
+/** A box with an arrow leaving it, for a link off the site. */
+export const ext = (o) => icon("M6.5 3.5H3.5v9h9v-3M9.5 3.5h3v3M12.5 3.5L7.5 8.5", o);
+
+/**
+ * The glyph on its own, as a link that leaves the site.
+ *
+ * Returns nothing for a null href, so a caller can write it beside any name
+ * and get a link only where the reference database has an id for it.
+ */
+export function extLink(href, label) {
+  if (!href) return document.createComment("");
+  const a = document.createElement("a");
+  a.className = "ext";
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noopener";
+  a.title = label;
+  a.setAttribute("aria-label", label);
+  a.appendChild(ext({size: 12}));
+  return a;
+}

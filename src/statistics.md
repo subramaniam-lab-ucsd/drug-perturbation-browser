@@ -14,13 +14,15 @@ const familiesJ = FileAttachment("data/families.json").json();
 
 ```js
 import * as Plot from "npm:@observablehq/plot";
-import {rows} from "./components/util.js";
+import {rows, pubchemHref} from "./components/util.js";
+import {extLink} from "./components/icons.js";
 import {ALL, encode, pointerTip, doseKey} from "./components/query.js";
 import {BLUE, ORANGE, GREY} from "./components/palette.js";
 
 const cond = rows(conditionsT), drugs = rows(drugsT);
 const lines = rows(celllinesT), regs = rows(regulatorsT), families = familiesJ;
 const byLine = new Map(lines.map((l) => [l.cell_line, l]));
+const cidOf = new Map(drugs.map((d) => [d.drug, d.pubchem_cid]));
 const resultHref = (drug, dose) =>
   "./results?" + encode({dose: String(dose), drugKey: `drug:${drug}`, lineKey: ALL});
 ```
@@ -103,7 +105,8 @@ display(htl.html`<div class="scrollx">${Inputs.table(
     "median DE genes": d.median, "maximal DE genes": d.max,
     "responsive lines": `${d.responded} / ${d.lines}`})),
   {rows: 16, layout: "auto", format: {
-    drug: (x) => htl.html`<a class="xref" href=${resultHref(x, dose)}>${x}</a>`}})}</div>`)
+    drug: (x) => htl.html`<a class="xref" href=${resultHref(x, dose)}>${x}</a>${
+      extLink(pubchemHref(cidOf.get(x)), `${x} on PubChem`)}`}})}</div>`)
 ```
 
 ## Intrinsic responsiveness by cell line

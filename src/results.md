@@ -15,16 +15,15 @@ const verdictsT = FileAttachment("data/verdicts.arrow").arrow();
 const factorsT = FileAttachment("data/ladder_factors.arrow").arrow();
 const neighboursT = FileAttachment("data/neighbourhood.arrow").arrow();
 const familiesJ = FileAttachment("data/families.json").json();
-const manifest = FileAttachment("data/manifest.json").json();
 ```
 
 ```js
 import * as Plot from "npm:@observablehq/plot";
 import {tableFromIPC} from "npm:apache-arrow";
-import {rows} from "./components/util.js";
+import {rows, depmapHref, pubchemHref} from "./components/util.js";
 import {decode, encode, pointerTip, pearson, doseKey, doseSetOf} from "./components/query.js";
 import {BLUE, ORANGE, GREY} from "./components/palette.js";
-import {organIcon, pencil, caret} from "./components/icons.js";
+import {organIcon, pencil, caret, extLink} from "./components/icons.js";
 import {tabs, showTab} from "./components/tabs.js";
 import {comboBox} from "./components/combobox.js";
 
@@ -61,6 +60,12 @@ const multiDose = Q.doses.length > 1;
 const nameOf = (c) => byLine.get(c)?.name ?? c;
 const organOf = (c) => byLine.get(c)?.organ ?? "unknown";
 
+// Out to the reference databases, beside any name the page renders.
+const depmapLink = (c) =>
+  extLink(depmapHref(byLine.get(c)?.depmap), `${nameOf(c)} on DepMap`);
+const pubchemLink = (d) =>
+  extLink(pubchemHref(byDrug.get(d)?.pubchem_cid), `${d} on PubChem`);
+
 // Framework's `width` is the width of `main`, which is full-bleed here, so it
 // reports the viewport and not the panel a chart actually sits in. Derive the
 // real boxes once: .shell caps at 80rem with 24px gutters, .panel adds 22px
@@ -91,10 +96,13 @@ function peek(summary, items, {title, kind}) {
   // <span>, which would make the spans the flex items and the pills their
   // contents, and put a layer between the filter and what it hides.
   const list = htl.html`<div class="peek-list"></div>`;
-  list.append(...items.map((it) => htl.html`<a class="peek-item" href=${it.href}
-    data-k=${(it.name + " " + (it.note ?? "")).toLowerCase()} title=${it.hint ?? ""}
-    >${it.icon ?? ""}<span class="peek-n">${it.name}</span>${
-      it.note ? htl.html`<span class="peek-s">${it.note}</span>` : ""}</a>`));
+  // Two destinations per entry, so they are two anchors rather than one
+  // nested in the other: the name narrows the query, the icon leaves the site.
+  list.append(...items.map((it) => htl.html`<span class="peek-item"
+    data-k=${(it.name + " " + (it.note ?? "")).toLowerCase()}
+    ><a class="peek-go" href=${it.href} title=${it.hint ?? ""}
+      >${it.icon ?? ""}<span class="peek-n">${it.name}</span>${
+      it.note ? htl.html`<span class="peek-s">${it.note}</span>` : ""}</a>${it.out ?? ""}</span>`));
   const filter = items.length >= FILTER_FROM
     ? htl.html`<input class="peek-f" type="search" placeholder=${`Filter ${kind}…`}
         oninput=${(e) => {
@@ -144,21 +152,23 @@ display((() => {
   const moa = (d) => { const m = byDrug.get(d)?.moa; return !m || m === "unclear" ? "" : m; };
   const drugItems = selDrugs.map((d) => ({
     name: d, note: moa(d), hint: byDrug.get(d)?.targets ?? "",
-    href: narrowTo({drugs: [d]})}));
+    href: narrowTo({drugs: [d]}), out: pubchemLink(d)}));
   const lineItems = perLine.slice().sort((a, b) => d3.ascending(a.name, b.name))
     .map((l) => ({
       name: l.name, note: l.organ, icon: organIcon(l.organ),
       hint: `${l.n_deg.toLocaleString()} genes changed (median)`,
-      href: narrowTo({lines: [l.cell_line]})}));
+      href: narrowTo({lines: [l.cell_line]}), out: depmapLink(l.cell_line)}));
   return htl.html`<div class="result-head">
     <div>
       <h1>${peek(Q.labelDrug, drugItems,
-        {title: `${drugItems.length.toLocaleString()} drugs in this query`, kind: "drugs"})}</h1>
+        {title: `${drugItems.length.toLocaleString()} drugs in this query`, kind: "drugs"})
+      }${one ? pubchemLink(one) : ""}</h1>
       <div class="sub">${Q.labelDose} · ${peek(
         nLinesWithData === lines.length ? "all cell lines"
         : nLinesWithData === 1 ? perLine[0].name
         : `${nLinesWithData} cell lines`, lineItems,
         {title: `${lineItems.length} cell lines in this query`, kind: "cell lines"})
+      }${nLinesWithData === 1 ? depmapLink(perLine[0].cell_line) : ""
       } · ${sel.length.toLocaleString()} measurement${sel.length === 1 ? "" : "s"}</div>
     </div>
     <a class="btn-ghost" href=${"./?" + location.search.slice(1)}>${pencil()}Edit query</a>
@@ -253,6 +263,8 @@ showTab(tab);
 
 <div class="dash tabpanel" data-tab="overview">
 
+<div class="tab-def span2"><b>How much each drug changed.</b> The number of genes whose expression shifted after treatment, counted in every cell line tested, beside the cancer mutations those lines carry.</div>
+
 <aside class="panel">
   <div class="panel-h">Query summary</div>
 
@@ -346,7 +358,7 @@ display((() => {
   };
   const table = Array.from(d3.group(d, (x) => x.name), ([name, v]) => ({
     "cell line": name, tissue: v[0].organ,
-    DepMap: v[0].depmap || "\u2014",
+    DepMap: v[0].depmap || "",
     oncogenes: v.filter((x) => x.role === "Oncogene")
       .map((x) => x.protein_change || x.variant ? `${x.gene} ${x.protein_change || x.variant}` : x.gene).join(", "),
     "tumour suppressors": v.filter((x) => x.role === "Suppressor")
@@ -392,6 +404,9 @@ display((() => {
         format: {
           "cell line": (v) => htl.html`<b>${v}</b>`,
           tissue: (v) => htl.html`<span class="organ">${organIcon(v)}${v}</span>`,
+          // the id is the one thing on the page that addresses DepMap directly
+          DepMap: (v) => v ? htl.html`<a class="xref" href=${depmapHref(v)}
+            target="_blank" rel="noopener">${v}</a>` : "\u2014",
           oncogenes: (v) => clip(v), "tumour suppressors": (v) => clip(v)},
         header: {DepMap: "ID"}})}</div>
     </div>`;
@@ -503,6 +518,8 @@ display((() => {
 </div>
 
 <div class="dash tabpanel" data-tab="deg" hidden>
+
+<div class="tab-def span2"><b>Which genes changed.</b> The individual genes that went up or down in a treated cell line, compared with untreated wells of that same line.</div>
 
 <section class="panel span2">
   <div class="panel-h">Differentially expressed genes by cell line</div>
@@ -753,6 +770,8 @@ display((() => {
 
 <div class="dash tabpanel" data-tab="tf" hidden>
 
+<div class="tab-def span2"><b>Which transcription factors were switched on or off.</b> Transcription factors are not measured directly. Their activity is inferred from whether the genes each one is known to control moved together.</div>
+
 <section class="panel span2">
   <div class="panel-h">Transcription factor activity by pathway family</div>
 
@@ -964,6 +983,8 @@ display((() => {
 
 <div class="dash tabpanel" data-tab="similarity" hidden>
 
+<div class="tab-def span2"><b>How alike two responses are.</b> Every treated cell line has a whole response profile, not just a count. Correlating two profiles asks whether a drug did the same thing in both, something unrelated, or the opposite.</div>
+
 <section class="panel span2">
   <div class="panel-h">Profile correlation in expression and regulon space</div>
 
@@ -971,7 +992,7 @@ display((() => {
 // Both spaces at once: the question is how gene-level and regulon-level
 // similarity compare, and a radio made that a before-and-after memory test.
 const centred = view(Inputs.toggle({
-  label: "Remove the per-feature mean across the conditions shown",
+  label: "Compare only how these conditions differ from one another",
   value: false}));
 ```
 
@@ -1123,7 +1144,11 @@ display((() => {
       responses, blue discordant, pale unrelated. Lines are ordered so that concordant
       ones adjoin, making a contiguous red block a set responding as a
       group${markLabel ? `. A marker on the diagonal denotes ${markLabel}` : ""}.`}
-    Both panels share the same axis ordering, so corresponding cells may be compared directly.</p>
+    Both panels share the same axis ordering, so corresponding cells may be compared
+    directly. Almost everything here is red because each condition carries the same
+    drug response on top of its own: the control above subtracts, for every gene and
+    every factor, its average across the conditions shown, which leaves only the part
+    that differs between them and lets a genuinely opposite response go blue.</p>
     ${method(htl.html`Pearson correlation between
     ${byDrugLevel ? "per-drug mean profiles, averaged over the selected cell lines"
                   : "condition profiles"}. Gene space is the
@@ -1133,8 +1158,8 @@ display((() => {
     profiles comparable. One ordering, taken from gene space by nearest-neighbour
     chaining on 1 &minus; r, is applied to both matrices. Uncentred correlations sit
     almost entirely between 0 and 1 because every condition of a drug carries a shared
-    additive per-feature component; the toggle above subtracts each feature's mean over
-    the conditions shown, which removes it. The tests under <b>Genotype Specificity</b> are
+    additive per-feature component; the control above subtracts each feature's mean over
+    the conditions in view, which removes it. The tests under <b>Genotype Specificity</b> are
     unaffected either way, because they use a within-group minus between-group
     difference in which that component cancels.`)}
     <div class="two-up even">
@@ -1149,6 +1174,8 @@ display((() => {
 </div>
 
 <div class="dash tabpanel" data-tab="association" hidden>
+
+<div class="tab-def span2"><b>Whether a drug needs a particular mutation.</b> Whether cell lines carrying a given cancer mutation respond more strongly than lines without it, asked only of mutations in the gene the drug is annotated to target.</div>
 
 <section class="panel span2">
   <div class="panel-h">Genotype specificity summary</div>
@@ -1193,7 +1220,8 @@ display((() => {
                      || d3.ascending(a.drug, b.drug))
         .map((v) => htl.html`<tr>
           <td><a class="xref" href=${"./results?" + new URLSearchParams(
-            {dose: Q.doses.join(","), d: v.drug}).toString()}>${v.drug}</a></td>
+            {dose: Q.doses.join(","), d: v.drug}).toString()}>${v.drug}</a>${
+            pubchemLink(v.drug)}</td>
           <td>${(VERDICT[v.verdict] ?? [v.verdict])[0]}</td>
           <td>${v.genotype ? v.genotype.replace(":", " ") : ""}</td>
           <td class="dim">${v.axes || ""}</td>
@@ -1264,9 +1292,10 @@ display((() => {
       signed so larger always means more inhibition. <b>Response similarity</b> is the
       mean within-group profile correlation minus the mean group-to-comparator
       correlation, with an exact permutation null enumerated over all C(n, m)
-      assignments where that is at most 200,000, otherwise 50,000 samples. All
-      <i>p</i>-values are one-sided exact Mann-Whitney; the asymptotic approximation is
-      wrong by orders of magnitude at these group sizes. Benjamini-Hochberg is applied
+      assignments where that is at most 200,000, otherwise 50,000 samples. The first
+      two axes are tested by one-sided exact Mann-Whitney, forced exact because the
+      asymptotic approximation is wrong by orders of magnitude at these group sizes;
+      response similarity carries the permutation <i>p</i> just described. Benjamini-Hochberg is applied
       across every test this drug makes, which is why all three concentrations are
       listed rather than filtered. Highlighted cells clear <i>q</i> &lt; 0.05.`)}`;
 })())
@@ -1348,9 +1377,10 @@ display((() => {
       <div class="scrollx"><table class="ladder"><thead><tr>
         <th>drug</th><th>nearest</th><th>its mechanism</th><th class="num">similarity</th>
       </tr></thead><tbody>${first.map((x) => htl.html`<tr>
-        <td>${x.drug}</td>
+        <td>${x.drug}${pubchemLink(x.drug)}</td>
         <td><a class="xref" href=${"./results?" + new URLSearchParams(
-          {dose: Q.doses.join(","), d: x.neighbour}).toString()}>${x.neighbour}</a></td>
+          {dose: Q.doses.join(","), d: x.neighbour}).toString()}>${x.neighbour}</a>${
+          pubchemLink(x.neighbour)}</td>
         <td class="dim">${x.neighbour_moa}</td>
         <td class="num">${x.r.toFixed(2)}</td></tr>`)}</tbody></table></div>`;
   }
@@ -1375,7 +1405,8 @@ display((() => {
       <th>drug</th><th>mechanism</th><th>targets</th><th class="num">similarity</th>
     </tr></thead><tbody>${n.map((x) => htl.html`<tr>
       <td><a class="xref" href=${"./results?" + new URLSearchParams(
-        {dose: Q.doses.join(","), d: x.neighbour}).toString()}>${x.neighbour}</a></td>
+        {dose: Q.doses.join(","), d: x.neighbour}).toString()}>${x.neighbour}</a>${
+        pubchemLink(x.neighbour)}</td>
       <td class="dim">${x.neighbour_moa}</td>
       <td class="dim">${x.neighbour_targets || "none annotated"}</td>
       <td class="num">${x.r.toFixed(2)}</td></tr>`)}</tbody></table></div>`;
@@ -1384,19 +1415,5 @@ display((() => {
 </section>
 
 </div>
-
-```js
-display(htl.html`<div class="provenance">
-  Differential expression: DESeq2, each well against every untreated DMSO well of the same
-  cell line, plate controlled. Genes counted at FDR 5%.
-  Pathway activity: CollecTRI regulons over the same contrasts.
-  Genotype: DepMap driver annotation shipped with Tahoe-100M.
-  Genotype: fixed in advance in spec/oncogenic_genotypes.yaml and only
-  tested against drugs that annotate the gene as a target. Three axes, BH-corrected
-  across every test a drug makes. Response similarity uses an exact permutation null
-  where the number of assignments allows it.
-  Built ${manifest.built_at.slice(0, 10)} · <code>${manifest.git_sha_short ?? "?"}</code>
-</div>`)
-```
 
 </div>
