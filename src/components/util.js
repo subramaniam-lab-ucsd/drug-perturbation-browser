@@ -23,6 +23,11 @@ export const depmapHref = (id) =>
   id && id !== "nan" ? `https://depmap.org/portal/cell_line/${id}` : null;
 export const pubchemHref = (cid) =>
   cid ? `https://pubchem.ncbi.nlm.nih.gov/compound/${cid}` : null;
+// The fallback for a line DepMap does not list, such as hTERT-HPNE: the
+// Cellosaurus accession is this app's own key for a cell line, so every line
+// has one and every line can be looked up somewhere.
+export const cellosaurusHref = (acc) =>
+  acc && /^CVCL_/.test(acc) ? `https://www.cellosaurus.org/${acc}` : null;
 
 // both deep-link into the browser, which is the only page that renders an entity
 export const drugHref = (d) => `./?drug=${encodeURIComponent(d)}`;

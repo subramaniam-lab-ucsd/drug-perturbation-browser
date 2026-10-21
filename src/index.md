@@ -14,7 +14,7 @@ const verdictsT = FileAttachment("data/verdicts.arrow").arrow();
 
 ```js
 import {rows} from "./components/util.js";
-import {encode, DOSES} from "./components/query.js";
+import {decode, encode, DOSES} from "./components/query.js";
 import {multiBox} from "./components/multibox.js";
 import {organIcon} from "./components/icons.js";
 
@@ -34,6 +34,25 @@ const genes = Array.from(linesWithGene).filter(([, v]) => v.length >= 3)
 const genotypes = Array.from(linesWithGenotype).filter(([, v]) => v.length >= 3)
   .sort((a, b) => b[1].length - a[1].length);
 const nameOf = new Map(lines.map((l) => [l.cell_line, l.name]));
+
+// "Edit query" comes back here carrying the query it was showing, so the form
+// opens on that selection rather than empty. Without this the only way back
+// from a result was to rebuild the query by hand.
+//
+// The absent parameter means "everything", which is the form's own empty
+// state, so it must stay empty rather than filling with all 376 chips: read
+// the raw parameters to tell "all drugs" from "these drugs". The values
+// themselves come from decode(), which drops any the data does not know.
+const back = (() => {
+  const p = new URLSearchParams(location.search);
+  const q = decode(location.search, {drugMeta: drugs, lineMeta: lines});
+  return {
+    drugs: p.get("d") ? q.drugs.map((d) => d.drug) : [],
+    lines: p.get("l") ? q.lines.map((l) => l.cell_line) : [],
+    // one concentration at a time here, so a multi-dose result edits as its first
+    dose: q.allDoses ? "0.5" : String(q.doses[0])
+  };
+})();
 ```
 
 <div class="home-head">
@@ -58,7 +77,7 @@ const drugBox = multiBox([
   ["By mechanism", moas.map(([m, n]) => [`moa:${m}`, m, `${n} drugs`])],
   ["By drug", drugs.slice().sort((a, b) => a.drug.localeCompare(b.drug))
      .map((d) => [d.drug, d.drug, d.moa ?? ""])]
-], {expand: expandDrug, emptyLabel: `All ${drugs.length} drugs`,
+], {value: back.drugs, expand: expandDrug, emptyLabel: `All ${drugs.length} drugs`,
     placeholder: "Search drugs or mechanisms…", ariaLabel: "Drugs"});
 const drugSel = Generators.input(drugBox);
 
@@ -69,7 +88,7 @@ const lineBox = multiBox([
      [`organ:${o}`, htl.html`<span class="organ">${organIcon(o)}${o}</span>`, `${n} lines`])],
   ["By cell line", lines.slice().sort((a, b) => a.name.localeCompare(b.name))
      .map((l) => [l.cell_line, l.name, l.organ])]
-], {expand: expandLine, emptyLabel: `All ${lines.length} cell lines`,
+], {value: back.lines, expand: expandLine, emptyLabel: `All ${lines.length} cell lines`,
     placeholder: "Search cell lines, genotypes, genes or tissues…", ariaLabel: "Cell lines"});
 const lineSel = Generators.input(lineBox);
 
@@ -79,7 +98,7 @@ const doseBox = htl.html`<div class="seg" role="radiogroup" aria-label="Concentr
   ${DOSES.map((d) => htl.html`<button type="button" class="seg-b" data-v=${d}>${d} µM</button>`)}
 </div>`;
 {
-  let v = "0.5";
+  let v = back.dose;
   const paint = () => doseBox.querySelectorAll(".seg-b")
     .forEach((b) => b.classList.toggle("is-on", b.dataset.v === v));
   doseBox.querySelectorAll(".seg-b").forEach((b) => b.onclick = () => {

@@ -327,6 +327,36 @@ a.go.is-disabled { background: var(--color-ink-300); pointer-events: none; box-s
 
 .result-head .sub { font-size: 13.5px; color: var(--color-ink-900); margin: 5px 0 0; }
 
+/* ---- the cards on this tab ----------------------------------------------- */
+/* Sticks to the top of the window, so the strip stays reachable through a tab
+   several screens tall. Not under the site navigation: that bar is sticky
+   inside a header box no taller than itself, so it scrolls away, and leaving
+   room for it would have opened a 60px band of content above this one.
+   Opaque, because the charts scroll underneath. */
+.cardnav { position: sticky; top: 0; z-index: 30;
+           display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+           margin: -6px 0 16px; padding: 7px 0 8px; background: var(--page);
+           box-shadow: 0 1px 0 var(--line), 0 6px 10px -8px rgba(15, 23, 42, .35); }
+.cardnav[hidden] { display: none; }
+.cardnav-k { font-size: 11px; font-weight: 600; letter-spacing: .04em;
+             text-transform: uppercase; color: var(--color-ink-900);
+             margin-right: 8px; opacity: .6; }
+/* a[href] in Framework's own stylesheet outranks a bare class, so every colour
+   here is written through .cardnav to win on specificity */
+.cardnav a.cardnav-i { display: inline-flex; align-items: baseline; gap: 6px;
+             padding: 5px 11px; border: 1px solid transparent; border-radius: 999px;
+             font-size: 13px; color: var(--color-ink-900); text-decoration: none; }
+.cardnav a.cardnav-i:hover { background: var(--color-ink-100); text-decoration: none; }
+.cardnav a.cardnav-i.is-here { background: var(--color-brand-50);
+                     border-color: var(--color-brand-200);
+                     color: var(--color-brand-700); font-weight: 600; }
+/* dimmed rather than removed: a card the query cannot fill is still part of
+   what this tab offers, and the reason is the useful part */
+.cardnav a.cardnav-i.is-off { color: var(--color-ink-400); }
+.cardnav-w { font-size: 11.5px; color: var(--color-ink-400); }
+.cardnav a.cardnav-i.is-off.is-here { background: none; border-color: var(--line);
+                     font-weight: 400; }
+
 /* ---- what a tab is for --------------------------------------------------- */
 /* One sentence per tab, in plain words, set apart from the panel captions: the
    captions describe a figure, this describes the question the tab answers. */

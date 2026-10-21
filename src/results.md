@@ -20,7 +20,7 @@ const familiesJ = FileAttachment("data/families.json").json();
 ```js
 import * as Plot from "npm:@observablehq/plot";
 import {tableFromIPC} from "npm:apache-arrow";
-import {rows, depmapHref, pubchemHref} from "./components/util.js";
+import {rows, depmapHref, pubchemHref, cellosaurusHref} from "./components/util.js";
 import {decode, encode, pointerTip, pearson, doseKey, doseSetOf} from "./components/query.js";
 import {BLUE, ORANGE, GREY} from "./components/palette.js";
 import {organIcon, pencil, caret, extLink} from "./components/icons.js";
@@ -60,9 +60,15 @@ const multiDose = Q.doses.length > 1;
 const nameOf = (c) => byLine.get(c)?.name ?? c;
 const organOf = (c) => byLine.get(c)?.organ ?? "unknown";
 
-// Out to the reference databases, beside any name the page renders.
-const depmapLink = (c) =>
-  extLink(depmapHref(byLine.get(c)?.depmap), `${nameOf(c)} on DepMap`);
+// Out to the reference databases, beside any name the page renders. DepMap
+// where it lists the line, Cellosaurus otherwise: one line of the 48, the
+// immortalised pancreatic line hTERT-HPNE, has no DepMap id in the Tahoe
+// metadata, and Cellosaurus is the accession this app keys lines by anyway.
+const depmapLink = (c) => {
+  const dm = depmapHref(byLine.get(c)?.depmap);
+  return dm ? extLink(dm, `${nameOf(c)} on DepMap`)
+            : extLink(cellosaurusHref(c), `${nameOf(c)} on Cellosaurus`);
+};
 const pubchemLink = (d) =>
   extLink(pubchemHref(byDrug.get(d)?.pubchem_cid), `${d} on PubChem`);
 
@@ -248,24 +254,136 @@ const nLinesWithData = new Set(sel.map((c) => c.cell_line)).size;
 ```
 
 ```js
-const tab = view(tabs([
-  ["overview",    "Overview",                      "response magnitude and genotype"],
-  ["deg",         "Differential Expression",       "Upregulated and downregulated genes"],
-  ["tf",          "Transcription Factor Activity", "Regulon-inferred TF activity"],
-  ["similarity",  "Profile Similarity",            "Correlation between conditions"],
-  ["association", "Genotype Specificity",          "Response by oncogenic genotype"]
-], {value: "overview"}));
+// Framework re-runs this block when the window width changes, which rebuilds
+// the bar from its declared default: resizing the window, or opening the
+// browser's device toolbar, threw the reader back to Overview from whatever
+// they were reading. The choice is held outside the block so a rebuild
+// restores it, and in memory rather than in storage so a fresh query still
+// opens on Overview.
+const tab = view((() => {
+  window.__dpbTab ??= "overview";
+  const bar = tabs([
+    ["overview",    "Overview",                      "Response magnitude and genotype"],
+    ["deg",         "Differential Expression",       "Upregulated and downregulated genes"],
+    ["tf",          "Transcription Factor Activity", "Regulon-inferred TF activity"],
+    ["similarity",  "Profile Similarity",            "Correlation between conditions"],
+    ["association", "Genotype Specificity",          "Response by oncogenic genotype"]
+  ], {value: window.__dpbTab});
+  bar.addEventListener("input", () => { window.__dpbTab = bar.value; });
+  return bar;
+})());
 ```
 
 ```js
 showTab(tab);
 ```
 
+<nav class="cardnav" id="cardnav" aria-label="Cards on this tab" hidden></nav>
+
+```js
+// A tab stacks two or three cards and a card can be a screen tall, so the last
+// one sits two scrolls below the fold and a reader has no way of knowing it is
+// there. This strip names the cards of whichever tab is open: click one to
+// jump to it, and it tracks what is actually on screen as you scroll.
+//
+// A card the current query cannot fill — the comparative views need two drugs,
+// the detail views are capped — is dimmed and carries the reason, so nobody
+// scrolls to an empty panel to find out why it is empty.
+//
+// It is built from the DOM rather than from a list declared here, because the
+// cards render asynchronously and a tab switch only toggles `hidden`: the
+// panels are the only thing that knows what is currently showing.
+const cardnav = (() => {
+  const nav = document.querySelector("#cardnav");
+  const slug = (s) => "card-" + s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  // whatever the strip is stuck to, plus its own height and a little air
+  const headroom = () =>
+    (parseFloat(getComputedStyle(nav).top) || 0) + nav.offsetHeight + 14;
+
+  const cards = () => [...document.querySelectorAll(".tabpanel")]
+    .filter((p) => !p.hidden)
+    .flatMap((p) => [...p.children].filter((c) => c.dataset.card));
+
+  // A card is unfillable when it rendered an empty state and nothing else: a
+  // panel that drew a chart as well is showing something, whatever it also says.
+  const emptyOf = (c) => {
+    const e = c.querySelector(".empty");
+    return e && !c.querySelector("svg, table") ? e : null;
+  };
+
+  function render() {
+    const cs = cards();
+    for (const c of cs) c.id = slug(c.dataset.card);
+    // Rebuilding on every mutation would fight the observer and lose the
+    // focus ring, so the strip is only replaced when its content changes.
+    const key = cs.map((c) => `${c.dataset.card}|${emptyOf(c)?.dataset.why ?? ""}`).join("~");
+    if (key === nav.dataset.key) return paint();
+    nav.dataset.key = key;
+    nav.replaceChildren();
+    nav.hidden = cs.length < 2;
+    if (nav.hidden) return;
+    const k = document.createElement("span");
+    k.className = "cardnav-k";
+    k.textContent = "On this tab";
+    nav.append(k);
+    for (const c of cs) {
+      const e = emptyOf(c);
+      const a = document.createElement("a");
+      a.href = `#${c.id}`;
+      a.className = "cardnav-i" + (e ? " is-off" : "");
+      a.append(c.dataset.card);
+      if (e) {
+        const w = document.createElement("span");
+        w.className = "cardnav-w";
+        w.textContent = e.dataset.why ?? "nothing to show";
+        a.append(w);
+        a.title = e.textContent.replace(/\s+/g, " ").trim();
+      }
+      a.onclick = (ev) => {
+        ev.preventDefault();
+        scrollTo({top: c.getBoundingClientRect().top + scrollY - headroom(),
+                  behavior: "smooth"});
+      };
+      nav.append(a);
+    }
+    paint();
+  }
+
+  // Current is the last card whose top has passed under the strip, which is
+  // what a reader means by "the one I am looking at" on a page of tall cards.
+  function paint() {
+    const cs = cards(), items = [...nav.querySelectorAll(".cardnav-i")];
+    if (!cs.length || items.length !== cs.length) return;
+    const y = scrollY + headroom() + 8;
+    let at = 0;
+    cs.forEach((c, i) => { if (c.getBoundingClientRect().top + scrollY <= y) at = i; });
+    items.forEach((a, i) => a.classList.toggle("is-here", i === at));
+  }
+
+  let queued = false;
+  const bump = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; render(); });
+  };
+  // Mutations the strip itself causes are ignored, or each rebuild would
+  // schedule the next one.
+  new MutationObserver((ms) => {
+    if (ms.every((m) => nav.contains(m.target))) return;
+    bump();
+  }).observe(document.querySelector(".shell"),
+             {childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"]});
+  addEventListener("scroll", () => requestAnimationFrame(paint), {passive: true});
+  render();
+  return nav;
+})();
+```
+
 <div class="dash tabpanel" data-tab="overview">
 
-<div class="tab-def span2"><b>How much each drug changed.</b> The number of genes whose expression shifted after treatment, counted in every cell line tested, beside the cancer mutations those lines carry.</div>
+<div class="tab-def span2"><b>Differential expression magnitude</b> is counted per contrast as the number of genes reaching a 5% false discovery rate against the untreated DMSO wells of the same cell line, split by direction of change, and is reported beside the oncogenic driver alterations annotated in the lines assayed.</div>
 
-<aside class="panel">
+<aside class="panel" data-card="Query summary">
   <div class="panel-h">Query summary</div>
 
 ```js
@@ -334,7 +452,7 @@ display((() => {
 
 </aside>
 
-<section class="panel">
+<section class="panel" data-card="Genotype of the lines">
   <div class="panel-h">Oncogenic genotype of the selected cell lines</div>
 
 ```js
@@ -414,12 +532,12 @@ display((() => {
 ```
 </section>
 
-<section class="panel span2">
+<section class="panel span2" data-card="Response magnitude">
   <div class="panel-h">Differential expression magnitude by cell line</div>
 
 ```js
 display((() => {
-  if (!sel.length) return htl.html`<div class="empty">Nothing matches. <a href="./">Change the query</a>.</div>`;
+  if (!sel.length) return htl.html`<div class="empty" data-why="no measurements">Nothing matches. <a href="./">Change the query</a>.</div>`;
   if (one) {
     const d = perLine;
     // Back to back rather than stacked. The response spans three orders of
@@ -519,14 +637,14 @@ display((() => {
 
 <div class="dash tabpanel" data-tab="deg" hidden>
 
-<div class="tab-def span2"><b>Which genes changed.</b> The individual genes that went up or down in a treated cell line, compared with untreated wells of that same line.</div>
+<div class="tab-def span2">Each contrast is resolved to individual genes, reporting the unshrunk log2 fold change of every transcript that clears a 5% false discovery rate against the untreated DMSO wells of its own cell line, ranked by <b>effect size</b> and by <b>recurrence</b> across cell lines.</div>
 
-<section class="panel span2">
+<section class="panel span2" data-card="By cell line">
   <div class="panel-h">Differentially expressed genes by cell line</div>
 
 ```js
 display((() => {
-  if (tooManyForDetail) return htl.html`<div class="empty">Gene-level detail is fetched
+  if (tooManyForDetail) return htl.html`<div class="empty" data-why="too many drugs">Gene-level detail is fetched
     one file per drug, so it is capped at ${MAX_DETAIL}; ${selDrugs.length} drugs are
     selected. Narrow the query, or use <b>Pathway activity</b> and
     <b>Genotype Specificity</b>, which cover every drug.</div>`;
@@ -601,7 +719,7 @@ display((() => {
 ```
 </section>
 
-<section class="panel span2">
+<section class="panel span2" data-card="Single condition">
   <div class="panel-h">Differential expression in a single condition</div>
 
 ```js
@@ -635,7 +753,7 @@ const geneLine = geneLineBox ? view(geneLineBox) : display(nothing());
 
 ```js
 display((() => {
-  if (tooManyForDetail) return htl.html`<div class="empty">Capped at ${MAX_DETAIL} drugs;
+  if (tooManyForDetail) return htl.html`<div class="empty" data-why="too many drugs">Capped at ${MAX_DETAIL} drugs;
     ${selDrugs.length} are selected.</div>`;
   if (!geneLineChoices.length) return htl.html`<div class="empty">No gene changed here.</div>`;
   const chosen = geneLineChoices.find((c) => c.label === geneLine) ?? geneLineChoices[0];
@@ -681,7 +799,7 @@ display((() => {
 ```
 </section>
 
-<section class="panel span2">
+<section class="panel span2" data-card="Recurrent genes">
   <div class="panel-h">Recurrently differentially expressed genes</div>
 
 ```js
@@ -713,7 +831,7 @@ const geneRows = tooManyForDetail ? null : (await Promise.all(
 
 ```js
 display((() => {
-  if (tooManyForDetail) return htl.html`<div class="empty">Capped at ${MAX_DETAIL} drugs;
+  if (tooManyForDetail) return htl.html`<div class="empty" data-why="too many drugs">Capped at ${MAX_DETAIL} drugs;
     ${selDrugs.length} are selected.</div>`;
   const g = geneRows.filter((r) => doseSet.has(doseKey(r.dose)) && lineSet.has(r.cell_line));
   if (!g.length) return htl.html`<div class="empty">No gene passes here.</div>`;
@@ -770,15 +888,15 @@ display((() => {
 
 <div class="dash tabpanel" data-tab="tf" hidden>
 
-<div class="tab-def span2"><b>Which transcription factors were switched on or off.</b> Transcription factors are not measured directly. Their activity is inferred from whether the genes each one is known to control moved together.</div>
+<div class="tab-def span2"><b>Transcription factor activity</b> is inferred rather than measured: a univariate linear model scores each CollecTRI regulon against the differential expression statistics of a contrast, so a positive score denotes coordinated induction of that factor’s annotated targets and a negative score their repression.</div>
 
-<section class="panel span2">
+<section class="panel span2" data-card="By pathway family">
   <div class="panel-h">Transcription factor activity by pathway family</div>
 
 ```js
 display((() => {
   const rs = regSummary.filter((r) => doseSet.has(doseKey(r.dose)) && drugSet.has(r.drug));
-  if (!rs.length) return htl.html`<div class="empty">No regulator scores here.</div>`;
+  if (!rs.length) return htl.html`<div class="empty" data-why="no scores here">No regulator scores here.</div>`;
   const byFam = d3.rollups(rs, (v) => d3.median(v, (d) => d.z), (d) => d.family, (d) => d.regulator)
     .flatMap(([family, v]) => v.map(([regulator, z]) => ({family, regulator, z})));
   const famOrder = families.map((f) => f.name).filter((n) => byFam.some((d) => d.family === n));
@@ -824,16 +942,16 @@ display((() => {
 ```
 </section>
 
-<section class="panel span2">
+<section class="panel span2" data-card="By drug and pathway">
   <div class="panel-h">Transcription factor activity by drug and pathway</div>
 
 ```js
 display((() => {
-  if (selDrugs.length < 2) return htl.html`<div class="empty">Comparative view. Select
+  if (selDrugs.length < 2) return htl.html`<div class="empty" data-why="needs 2+ drugs">Comparative view. Select
     two or more drugs to contrast the pathways whose transcriptional output they
     perturb.</div>`;
   const rs = regSummary.filter((r) => doseSet.has(doseKey(r.dose)) && drugSet.has(r.drug));
-  if (!rs.length) return htl.html`<div class="empty">No pathway scores here.</div>`;
+  if (!rs.length) return htl.html`<div class="empty" data-why="no scores here">No pathway scores here.</div>`;
   const cells = d3.rollups(rs, (v) => d3.median(v, (d) => d.z), (d) => d.drug, (d) => d.family)
     .flatMap(([drug, v]) => v.map(([family, z]) => ({drug, family, z})));
   const famOrder = families.map((f) => f.name)
@@ -876,7 +994,7 @@ display((() => {
 ```
 </section>
 
-<section class="panel span2">
+<section class="panel span2" data-card="Single condition">
   <div class="panel-h">Transcription factor activity in a single condition</div>
 
 ```js
@@ -921,7 +1039,7 @@ const pick = pickBox ? view(pickBox) : display(nothing());
 
 ```js
 display((() => {
-  if (tooManyForDetail) return htl.html`<div class="empty">Factor-level profiles are
+  if (tooManyForDetail) return htl.html`<div class="empty" data-why="too many drugs">Factor-level profiles are
     fetched one file per drug, so this is capped at ${MAX_DETAIL};
     ${selDrugs.length} drugs are selected. The pathway views above cover every
     drug.</div>`;
@@ -983,9 +1101,9 @@ display((() => {
 
 <div class="dash tabpanel" data-tab="similarity" hidden>
 
-<div class="tab-def span2"><b>How alike two responses are.</b> Every treated cell line has a whole response profile, not just a count. Correlating two profiles asks whether a drug did the same thing in both, something unrelated, or the opposite.</div>
+<div class="tab-def span2">Each condition is represented by its differential expression statistics over a fixed gene panel and by its regulon activity vector, and <b>Pearson correlation</b> between those profiles distinguishes concordant transcriptional responses from unrelated and inverted ones.</div>
 
-<section class="panel span2">
+<section class="panel span2" data-card="Correlation matrices">
   <div class="panel-h">Profile correlation in expression and regulon space</div>
 
 ```js
@@ -1089,7 +1207,7 @@ function orderOf(m) {
 
 ```js
 display((() => {
-  if (tooMany) return htl.html`<div class="empty">Profile similarity is computed in the
+  if (tooMany) return htl.html`<div class="empty" data-why="too many drugs">Profile similarity is computed in the
     browser from one file per drug, so it is capped at ${MAX_DRUGS} drugs.
     ${selDrugs.length} are selected.</div>`;
   const gm = matrix("gene");
@@ -1175,14 +1293,14 @@ display((() => {
 
 <div class="dash tabpanel" data-tab="association" hidden>
 
-<div class="tab-def span2"><b>Whether a drug needs a particular mutation.</b> Whether cell lines carrying a given cancer mutation respond more strongly than lines without it, asked only of mutations in the gene the drug is annotated to target.</div>
+<div class="tab-def span2">Cell lines are stratified by pre-specified oncogenic alterations in the gene a drug is annotated to target, and <b>carrier against non-carrier response</b> is quantified by AUROC with exact one-sided tests, which asks whether a drug’s activity is conditional on genotype.</div>
 
-<section class="panel span2">
+<section class="panel span2" data-card="Verdict summary">
   <div class="panel-h">Genotype specificity summary</div>
 
 ```js
 display((() => {
-  if (selDrugs.length < 2) return htl.html`<div class="empty">Comparative view. Select
+  if (selDrugs.length < 2) return htl.html`<div class="empty" data-why="needs 2+ drugs">Comparative view. Select
     two or more drugs to contrast their genotype dependence across the panel.</div>`;
   const ORDER = ["specific_genotype", "specific_genotype_vs_wild_type", "gene_level",
                  "pathway_level", "no_genotype_dependence", "underpowered",
@@ -1230,7 +1348,7 @@ display((() => {
 ```
 </section>
 
-<section class="panel span2">
+<section class="panel span2" data-card="Stratification tests">
   <div class="panel-h">Genotype stratification tests</div>
 
 ```js
@@ -1350,7 +1468,7 @@ display((() => {
 
 <div class="dash tabpanel" data-tab="similarity" hidden>
 
-<section class="panel span2">
+<section class="panel span2" data-card="Nearest drugs">
   <div class="panel-h">Nearest drugs by transcription factor signature</div>
 
 ```js
@@ -1362,7 +1480,7 @@ display((() => {
     // works however many are selected.
     const first = neighbours.filter((x) => drugSet.has(x.drug) && x.rank === 1)
       .sort((a, b) => b.r - a.r);
-    if (!first.length) return htl.html`<div class="empty">No signatures here.</div>`;
+    if (!first.length) return htl.html`<div class="empty" data-why="no signatures">No signatures here.</div>`;
     const rate = first[0].nn_recovery, chance = first[0].chance;
     return htl.html`<p class="caption">Nearest neighbour of each of the
       ${selDrugs.length} selected drugs, by whole-panel transcription factor signature.
@@ -1384,16 +1502,16 @@ display((() => {
         <td class="dim">${x.neighbour_moa}</td>
         <td class="num">${x.r.toFixed(2)}</td></tr>`)}</tbody></table></div>`;
   }
-  if (!one) return htl.html`<div class="empty">No drug selected.</div>`;
+  if (!one) return htl.html`<div class="empty" data-why="needs one drug">No drug selected.</div>`;
   // Only where the ladder has nothing to say. With a genotype verdict in hand
   // this table is weaker evidence sitting next to stronger evidence.
   if (verdict && !quiet.includes(verdict.verdict))
-    return htl.html`<div class="empty">Signature similarity is a weak mechanistic
+    return htl.html`<div class="empty" data-why="see Genotype Specificity">Signature similarity is a weak mechanistic
       indicator and is shown only for drugs with no testable annotated target. This
       drug has a pre-specified result under <b>Genotype Specificity</b>, which is the
       stronger evidence.</div>`;
   const n = neighbours.filter((x) => x.drug === one).sort((a, b) => a.rank - b.rank);
-  if (!n.length) return htl.html`<div class="empty">No signature for this drug.</div>`;
+  if (!n.length) return htl.html`<div class="empty" data-why="no signature">No signature for this drug.</div>`;
   const rate = n[0].nn_recovery, chance = n[0].chance;
   return htl.html`<p class="caption">Drugs whose whole-panel transcription factor
     signature most resembles this one. The nearest neighbour shares the annotated

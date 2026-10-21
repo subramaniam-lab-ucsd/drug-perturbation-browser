@@ -124,6 +124,35 @@ ck("no stale nav links", !(await page.$$eval("a", (a) => a.map((x) => x.pathname
   .some((p) => ["/genotype", "/tf", "/report", "/methods", "/diagnostics"].includes(p)));
 ck("nav is three items", await count(".topnav-links a") === 3);
 
+// ---- edit query comes back to the query it was showing -------------------
+// The form reads the same parameters the results page was opened with, so the
+// round trip is lossless; without it, editing a query started from scratch.
+console.log("\n/?dose=5&d=…&l=… (the form, prefilled)");
+await go("/?dose=5&d=Adagrasib,Trametinib&l=CVCL_0023,CVCL_0131");
+ck("no page errors", errs.length === 0, errs[0]);
+const chips = await page.$$eval(".q-field", (f) => f.map((x) =>
+  [...x.querySelectorAll(".cb-chip")].map((c) => c.textContent.replace("\u00d7", "").trim())));
+ck("the drugs come back", JSON.stringify(chips[0]) ===
+   JSON.stringify(["Adagrasib", "Trametinib"]), JSON.stringify(chips[0]));
+ck("the cell lines come back by name", JSON.stringify(chips[1].sort()) ===
+   JSON.stringify(["A-172", "A549"]), JSON.stringify(chips[1]));
+ck("the concentration comes back",
+   (await page.$eval(".seg-b.is-on", (b) => b.dataset.v)) === "5");
+ck("and the link returns the same query", await page.$eval(".q-actions .go", (a) => {
+  const p = new URLSearchParams(a.getAttribute("href").split("?")[1]);
+  return p.get("dose") === "5"
+      && p.get("d").split(",").sort().join() === "Adagrasib,Trametinib"
+      && p.get("l").split(",").sort().join() === "CVCL_0023,CVCL_0131";
+}), await page.$eval(".q-actions .go", (a) => a.getAttribute("href")));
+// An absent parameter means everything, which is the form's own empty state:
+// it must not come back as 376 chips.
+await go("/?dose=0.05");
+ck("all drugs stays the empty state", await page.$$eval(".q-field", (f) =>
+  f[0].querySelectorAll(".cb-chip").length === 0
+  && /All \d+ drugs/.test(f[0].textContent)));
+ck("a dose on its own is still honoured",
+   (await page.$eval(".seg-b.is-on", (b) => b.dataset.v)) === "0.05");
+
 // ---- dashboard, one compound -------------------------------------------
 console.log("\n/results?d=Adagrasib (one drug)");
 await go("/results?dose=0.5&d=Adagrasib");
@@ -177,10 +206,15 @@ ck("edit query button, with a pencil",
 ck("the drug title links to PubChem", await page.$eval(".result-head h1 .ext",
   (e) => /pubchem\.ncbi\.nlm\.nih\.gov\/compound\/\d+$/.test(e.href)
       && e.target === "_blank" && /noopener/.test(e.rel)));
-ck("every cell line in the peek links to DepMap", await page.$$eval(
-  ".result-head .sub .peek-item", (e) => e.length === 47
-    && e.filter((x) => /depmap\.org\/portal\/cell_line\/ACH-\d+$/
-         .test(x.querySelector("a.ext")?.href ?? "")).length === 47));
+// DepMap for the 46 lines it lists, Cellosaurus for hTERT-HPNE, which the
+// Tahoe metadata gives no DepMap id. No name in the list is a dead end.
+ck("every cell line links to a reference page", await page.$$eval(
+  ".result-head .sub .peek-item", (e) => {
+    const out = e.map((x) => x.querySelector("a.ext")?.href ?? "");
+    return e.length === 47
+        && out.filter((h) => /depmap\.org\/portal\/cell_line\/ACH-\d+$/.test(h)).length === 46
+        && out.filter((h) => /cellosaurus\.org\/CVCL_/.test(h)).length === 1;
+  }));
 // the provenance paragraph is gone; /about still carries the build stamp
 ck("no provenance footer on the dashboard", await count(".provenance") === 0);
 // ---- one plain sentence per tab -----------------------------------------
@@ -194,6 +228,49 @@ ck("tab labels are biological", await page.$$eval(".tab .tab-l", (e) =>
   JSON.stringify(e.map((x) => x.textContent)) === JSON.stringify(
     ["Overview", "Differential Expression", "Transcription Factor Activity",
      "Profile Similarity", "Genotype Specificity"])));
+// ---- the strip that names the cards on the open tab ---------------------
+const navOf = () => page.$$eval(".cardnav .cardnav-i", (e) => e.map((a) => ({
+  name: a.firstChild.textContent.trim(),
+  why: a.querySelector(".cardnav-w")?.textContent ?? null,
+  here: a.classList.contains("is-here")})));
+ck("the strip names the cards of the open tab", await page.evaluate(() => {
+  const cards = [...document.querySelectorAll(".tabpanel")].filter((p) => !p.hidden)
+    .flatMap((p) => [...p.children].filter((c) => c.dataset.card));
+  const items = [...document.querySelectorAll(".cardnav-i")];
+  return cards.length === items.length && cards.length > 1
+      && cards.every((c, i) => items[i].getAttribute("href") === `#${c.id}`);
+}));
+ck("the first card is the one marked current", (await navOf())[0].here);
+// One drug: the comparative card cannot be filled, and the strip says why
+// rather than making the reader scroll to an empty panel to find out.
+await page.evaluate(() => document.querySelector('.tab[data-tab="tf"]').click());
+await new Promise((r) => setTimeout(r, 2000));
+const tfNav = await navOf();
+ck("the strip follows the tab", JSON.stringify(tfNav.map((x) => x.name)) ===
+   JSON.stringify(["By pathway family", "By drug and pathway", "Single condition"]),
+   JSON.stringify(tfNav.map((x) => x.name)));
+ck("a card the query cannot fill says why", tfNav[1].why === "needs 2+ drugs",
+   JSON.stringify(tfNav[1]));
+// Clicking an entry moves the page to that card and the highlight follows.
+await page.evaluate(() => [...document.querySelectorAll(".cardnav-i")][2].click());
+await new Promise((r) => setTimeout(r, 1200));
+ck("a strip entry jumps to its card", await page.evaluate(() => {
+  const c = document.querySelector('[data-card="Single condition"]:not([hidden])');
+  return scrollY > 200 && Math.abs(c.getBoundingClientRect().top) < 120;
+}));
+ck("the highlight follows the scroll", (await navOf())[2].here);
+await page.evaluate(() => scrollTo(0, 0));
+await new Promise((r) => setTimeout(r, 400));
+// The tab bar is rebuilt whenever the window width changes; the reader's tab
+// must survive that, or a resize throws them back to Overview.
+await page.setViewport({width: 1380, height: 1050});
+await new Promise((r) => setTimeout(r, 900));
+ck("the open tab survives a resize",
+   (await page.$eval(".tab.is-active", (e) => e.dataset.tab)) === "tf");
+await page.setViewport({width: 1500, height: 1050});
+await new Promise((r) => setTimeout(r, 900));
+await page.evaluate(() => document.querySelector('.tab[data-tab="overview"]').click());
+await new Promise((r) => setTimeout(r, 1200));
 // the words the terminology sweep removed, in anything a reader sees
 ck("no lesion or allele anywhere in the page", await page.evaluate(() =>
   !/\b(lesion|allele)s?\b/i.test(document.body.innerText)),
@@ -424,11 +501,15 @@ ck("exact test named, not asymptotic", /exact Mann-Whitney/i.test(t));
 // lands nowhere and the tip never renders.
 await onTab("overview");
 const tip = await (async () => {
+  // Centre the bar in the window first: the card strip is sticky at the top of
+  // the viewport, so a bar sitting under it takes the hover instead.
   const box = await page.$eval(
     ".tabpanel:not([hidden]) .panel svg g[aria-label='bar'] rect", (r) => {
+      r.scrollIntoView({block: "center"});
       const b = r.getBoundingClientRect();
       return {x: b.x + b.width / 2, y: b.y + b.height / 2};
     });
+  await new Promise((r) => setTimeout(r, 300));
   await page.mouse.move(box.x, box.y);
   await new Promise((r) => setTimeout(r, 600));
   return page.evaluate(() => {
