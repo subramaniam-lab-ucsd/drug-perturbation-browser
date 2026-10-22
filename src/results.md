@@ -79,6 +79,21 @@ const pubchemLink = (d) =>
 const SHELL = Math.min(width, 1280) - 48;
 const PANEL = SHELL - 44;
 const HALF = Math.floor((PANEL - 20) / 2);
+
+// Figure geometry. Two decisions make a card look composed rather than empty:
+// how much room the axis labels actually need, and how far a cell may grow
+// before the figure stops filling its panel. Both were fixed constants, tuned
+// for the widest selection, so a query with four drugs drew a 100px figure in
+// a 1,232px card under a 136px band of reserved label space.
+const CH = 6.3;                       // width of a character at 11px, measured
+const roomFor = (labels, {angle = 0, pad = 18, max = 240} = {}) => {
+  const w = (d3.max(labels, (l) => String(l).length) ?? 0) * CH;
+  // a rotated label needs its own length projected onto the axis it crosses
+  const need = angle ? w * Math.sin(Math.abs(angle) * Math.PI / 180) : w;
+  return Math.round(Math.min(max, need + pad));
+};
+const fitCell = (avail, n, {min = 7, max = 40} = {}) =>
+  Math.max(min, Math.min(max, Math.floor(avail / Math.max(1, n))));
 ```
 
 ```js
@@ -295,12 +310,16 @@ showTab(tab);
 // panels are the only thing that knows what is currently showing.
 const cardnav = (() => {
   const nav = document.querySelector("#cardnav");
-  const slug = (s) => "card-" + s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  // Scoped by tab: "Single condition" is a card on two different tabs, and one
+  // id for both made #card-single-condition resolve to whichever came first in
+  // the document, so the strip's own links pointed at the hidden one.
+  const slug = (c) => "card-" + [c.closest(".tabpanel").dataset.tab, c.dataset.card]
+    .join("-").toLowerCase().replace(/[^a-z0-9]+/g, "-");
   // whatever the strip is stuck to, plus its own height and a little air
   const headroom = () =>
     (parseFloat(getComputedStyle(nav).top) || 0) + nav.offsetHeight + 14;
 
-  const cards = () => [...document.querySelectorAll(".tabpanel")]
+  const inTab = () => [...document.querySelectorAll(".tabpanel")]
     .filter((p) => !p.hidden)
     .flatMap((p) => [...p.children].filter((c) => c.dataset.card));
 
@@ -311,12 +330,35 @@ const cardnav = (() => {
     return e && !c.querySelector("svg, table") ? e : null;
   };
 
+  /**
+   * The cards this tab can actually fill.
+   *
+   * A card the query cannot satisfy — the comparative views need two drugs,
+   * the per-drug detail is capped — is taken out of the page rather than left
+   * standing as a sentence explaining its own absence. The exception is a tab
+   * where nothing can be filled: hiding every card would leave a blank page
+   * with no account of why, so there the explanations are what the tab has to
+   * offer and they stay.
+   */
+  function cards() {
+    const all = inTab();
+    const live = all.filter((c) => !emptyOf(c));
+    const show = new Set(live.length ? live : all);
+    for (const c of all) {
+      const want = !show.has(c);
+      // only on a change: assigning `hidden` writes the attribute either way,
+      // and the observer below would see every write as new work
+      if (c.hidden !== want) c.hidden = want;
+    }
+    return live.length ? live : all;
+  }
+
   function render() {
     const cs = cards();
-    for (const c of cs) c.id = slug(c.dataset.card);
+    for (const c of cs) c.id = slug(c);
     // Rebuilding on every mutation would fight the observer and lose the
     // focus ring, so the strip is only replaced when its content changes.
-    const key = cs.map((c) => `${c.dataset.card}|${emptyOf(c)?.dataset.why ?? ""}`).join("~");
+    const key = cs.map((c) => `${c.dataset.card}|${emptyOf(c) ? "off" : ""}`).join("~");
     if (key === nav.dataset.key) return paint();
     nav.dataset.key = key;
     nav.replaceChildren();
@@ -341,8 +383,12 @@ const cardnav = (() => {
       }
       a.onclick = (ev) => {
         ev.preventDefault();
-        scrollTo({top: c.getBoundingClientRect().top + scrollY - headroom(),
-                  behavior: "smooth"});
+        // window.scrollY, not the bare global: Framework compiles a block's
+        // free identifiers into inputs captured by value when the block runs,
+        // so a bare `scrollY` is frozen at 0 and every jump from a scrolled
+        // page lands in the wrong place.
+        window.scrollTo({top: c.getBoundingClientRect().top + window.scrollY - headroom(),
+                         behavior: "smooth"});
       };
       nav.append(a);
     }
@@ -352,11 +398,22 @@ const cardnav = (() => {
   // Current is the last card whose top has passed under the strip, which is
   // what a reader means by "the one I am looking at" on a page of tall cards.
   function paint() {
-    const cs = cards(), items = [...nav.querySelectorAll(".cardnav-i")];
+    // reads only: this runs on every scroll frame, so it must not decide
+    // again what is hidden, only follow what render() left on the page
+    const cs = inTab().filter((c) => !c.hidden);
+    const items = [...nav.querySelectorAll(".cardnav-i")];
     if (!cs.length || items.length !== cs.length) return;
-    const y = scrollY + headroom() + 8;
+    // every one of these reads the window, for the reason in the click handler
+    const y = window.scrollY + headroom() + 8;
     let at = 0;
-    cs.forEach((c, i) => { if (c.getBoundingClientRect().top + scrollY <= y) at = i; });
+    cs.forEach((c, i) => {
+      if (c.getBoundingClientRect().top + window.scrollY <= y) at = i;
+    });
+    // A short last card cannot be scrolled to the top: the page runs out
+    // first. Without this the strip stays on the one before it however far
+    // down you are, which reads as the control having ignored the click.
+    if (window.scrollY + window.innerHeight
+        >= document.documentElement.scrollHeight - 2) at = cs.length - 1;
     items.forEach((a, i) => a.classList.toggle("is-here", i === at));
   }
 
@@ -372,7 +429,8 @@ const cardnav = (() => {
     if (ms.every((m) => nav.contains(m.target))) return;
     bump();
   }).observe(document.querySelector(".shell"),
-             {childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"]});
+             {childList: true, subtree: true, attributes: true,
+              attributeFilter: ["hidden", "data-card"]});
   addEventListener("scroll", () => requestAnimationFrame(paint), {passive: true});
   render();
   return nav;
@@ -452,7 +510,7 @@ display((() => {
 
 </aside>
 
-<section class="panel" data-card="Genotype of the lines">
+<section class="panel rows2" data-card="Genotype of the lines">
   <div class="panel-h">Oncogenic genotype of the selected cell lines</div>
 
 ```js
@@ -468,20 +526,6 @@ display((() => {
       examples: Array.from(new Set(v.map((x) => x.name))).slice(0, 8).join(", ")}),
     (x) => x.gene).map(([gene, s]) => ({gene, ...s}))
     .sort((a, b) => b.lines - a.lines).slice(0, 24);
-  // A cell listing every alteration ran the table to 6,000px. Clip it and
-  // keep the whole string in the title, which is where a long list belongs.
-  const clip = (v, n = 40) => {
-    const el = htl.html`<span title=${v}>${v.length > n ? v.slice(0, n - 1) + "\u2026" : v}</span>`;
-    return el;
-  };
-  const table = Array.from(d3.group(d, (x) => x.name), ([name, v]) => ({
-    "cell line": name, tissue: v[0].organ,
-    DepMap: v[0].depmap || "",
-    oncogenes: v.filter((x) => x.role === "Oncogene")
-      .map((x) => x.protein_change || x.variant ? `${x.gene} ${x.protein_change || x.variant}` : x.gene).join(", "),
-    "tumour suppressors": v.filter((x) => x.role === "Suppressor")
-      .map((x) => x.protein_change || x.variant ? `${x.gene} ${x.protein_change || x.variant}` : x.gene).join(", ")
-  })).sort((a, b) => a["cell line"].localeCompare(b["cell line"]));
   return htl.html`<p class="caption">Cancer driver genes annotated as mutated in the
     selected lines: ${new Set(onco.map((x) => x.gene)).size} oncogenes, which confer a
     gain of function when altered, and
@@ -511,23 +555,52 @@ display((() => {
             "Examples": (x) => x.examples}}),
           Plot.ruleX([0])
         ]})}
-    <div class="subpanel">
-      <div class="sub-h">Annotated alterations per cell line</div>
-      <div>${Inputs.table(table, {rows: 11, height: 340, select: false,
-        // half-width panel now: fixed columns that sum inside it, rather than
-        // auto layout running the table out to 1,000px behind a scrollbar
-        layout: "fixed", maxWidth: HALF - 28,
-        width: {"cell line": 104, tissue: 92, DepMap: 74,
-                oncogenes: 126, "tumour suppressors": 126},
-        format: {
-          "cell line": (v) => htl.html`<b>${v}</b>`,
-          tissue: (v) => htl.html`<span class="organ">${organIcon(v)}${v}</span>`,
-          // the id is the one thing on the page that addresses DepMap directly
-          DepMap: (v) => v ? htl.html`<a class="xref" href=${depmapHref(v)}
-            target="_blank" rel="noopener">${v}</a>` : "\u2014",
-          oncogenes: (v) => clip(v), "tumour suppressors": (v) => clip(v)},
-        header: {DepMap: "ID"}})}</div>
-    </div>`;
+`;
+})())
+```
+</section>
+
+<section class="panel" data-card="Alterations per line">
+  <div class="panel-h">Annotated alterations per cell line</div>
+
+```js
+display((() => {
+  // Its own card rather than a subpanel of the chart beside it: the chart is
+  // twice as tall as the query summary, so the table fills the second row of
+  // this column instead of leaving it as background.
+  const withData = new Set(sel.map((c) => c.cell_line));
+  const d = drivers.filter((x) => withData.has(x.cell_line));
+  if (!d.length) return htl.html`<div class="empty" data-why="no annotation">No DepMap
+    annotation for these lines.</div>`;
+  // A cell listing every alteration ran the table to 6,000px. Clip it and
+  // keep the whole string in the title, which is where a long list belongs.
+  const clip = (v, n = 40) =>
+    htl.html`<span title=${v}>${v.length > n ? v.slice(0, n - 1) + "\u2026" : v}</span>`;
+  const listed = (v, role) => v.filter((x) => x.role === role)
+    .map((x) => x.protein_change || x.variant
+      ? `${x.gene} ${x.protein_change || x.variant}` : x.gene).join(", ");
+  const table = Array.from(d3.group(d, (x) => x.name), ([name, v]) => ({
+    "cell line": name, tissue: v[0].organ, DepMap: v[0].depmap || "",
+    oncogenes: listed(v, "Oncogene"),
+    "tumour suppressors": listed(v, "Suppressor")
+  })).sort((a, b) => a["cell line"].localeCompare(b["cell line"]));
+  return htl.html`<p class="caption">Every alteration DepMap annotates in the
+    ${table.length} selected cell lines, by line. A long list is clipped; the whole of
+    it is in the cell's tooltip.</p>
+    <div>${Inputs.table(table, {rows: 11, height: 340, select: false,
+      // half-width card: fixed columns that sum inside it, rather than auto
+      // layout running the table out to 1,000px behind a scrollbar
+      layout: "fixed", maxWidth: HALF - 28,
+      width: {"cell line": 104, tissue: 92, DepMap: 74,
+              oncogenes: 126, "tumour suppressors": 126},
+      format: {
+        "cell line": (v) => htl.html`<b>${v}</b>`,
+        tissue: (v) => htl.html`<span class="organ">${organIcon(v)}${v}</span>`,
+        // the id is the one thing on the page that addresses DepMap directly
+        DepMap: (v) => v ? htl.html`<a class="xref" href=${depmapHref(v)}
+          target="_blank" rel="noopener">${v}</a>` : "\u2014",
+        oncogenes: (v) => clip(v), "tumour suppressors": (v) => clip(v)},
+      header: {DepMap: "ID"}})}</div>`;
 })())
 ```
 </section>
@@ -602,8 +675,9 @@ display((() => {
   const hi = d3.quantile(cells.map((c) => c.n_deg).sort(d3.ascending), 0.8) ?? 100;
   // Size the cells to the panel rather than fixing them and overflowing. An
   // invisible horizontal scrollbar hides half a heatmap.
-  const ml = 190, mr = 24;
-  const cw = Math.max(7, Math.min(22, Math.floor((PANEL - ml - mr) / cols.length)));
+  const ml = roomFor(shown, {max: 230}), mr = 24;
+  const cw = fitCell(PANEL - ml - mr, cols.length, {max: 34});
+  const mt = roomFor(cols, {angle: 50, pad: 14, max: 150});
   return htl.html`<p class="caption">How many genes each drug changed in each cell
       line. Darker means a bigger response.${rank.length > 40 ? ` The 40 strongest of
       ${rank.length} drugs.` : ""}</p>
@@ -614,7 +688,7 @@ display((() => {
     <div class="scrollx">${Plot.plot({
       width: Math.min(PANEL, cols.length * cw + ml + mr),
       height: Math.max(220, shown.length * 15 + 150),
-      marginLeft: ml, marginTop: 136, marginBottom: 6, marginRight: mr,
+      marginLeft: ml, marginTop: mt, marginBottom: 6, marginRight: mr,
       style: {fontSize: "10.5px"},
       x: {domain: cols, tickRotate: -50, label: null, axis: "top"},
       y: {domain: shown, label: null},
@@ -639,8 +713,28 @@ display((() => {
 
 <div class="tab-def span2">Each contrast is resolved to individual genes, reporting the unshrunk log2 fold change of every transcript that clears a 5% false discovery rate against the untreated DMSO wells of its own cell line, ranked by <b>effect size</b> and by <b>recurrence</b> across cell lines.</div>
 
-<section class="panel span2" data-card="By cell line">
+<section class="panel span2" data-pivot="deg-primary" data-card="By cell line">
   <div class="panel-h">Differentially expressed genes by cell line</div>
+
+```js
+// This panel pivots: one drug puts the cell lines on the columns, several put
+// the drugs there, because the question changes from "where does it act" to
+// "do they act alike". The heading and the name in the card strip said "by
+// cell line" either way, which mislabelled every multi-drug query.
+{
+  // Addressed by data-pivot, not by id: the card strip writes its own ids onto
+  // the cards, so an id put here in the markup is gone by the time this runs
+  // again. The guard is for the moment during a re-render when it is detached.
+  const card = document.querySelector("[data-pivot=deg-primary]");
+  const byDrug = selDrugs.length > 1;
+  if (card) {
+    card.dataset.card = byDrug ? "By drug" : "By cell line";
+    card.querySelector(".panel-h").textContent = byDrug
+      ? "Differentially expressed genes by drug"
+      : "Differentially expressed genes by cell line";
+  }
+}
+```
 
 ```js
 display((() => {
@@ -678,8 +772,9 @@ display((() => {
   const lim = d3.max(shown, (c) => Math.abs(c.lfc));
   const truncated = d3.rollups(g, (v) => v.length, (d) => `${d.drug}|${d.cell_line}`)
     .filter(([, n]) => n >= 60).length;
-  const ml = 118, mr = 20;
-  const cw = Math.max(7, Math.min(24, Math.floor((PANEL - ml - mr) / order.length)));
+  const ml = roomFor(genes, {max: 170}), mr = 20;
+  const cw = fitCell(PANEL - ml - mr, order.length, {max: 46});
+  const mt = roomFor(order, {angle: 55, pad: 14, max: 150});
   return htl.html`<p class="caption">${byDrug
       ? htl.html`Fold change of each differentially expressed gene across the
         ${selDrugs.length} selected drugs, pooled over ${nLinesWithData} cell lines.
@@ -701,7 +796,7 @@ display((() => {
     <div class="scrollx">${Plot.plot({
       width: Math.min(PANEL, order.length * cw + ml + mr),
       height: genes.length * 15 + 150,
-      marginLeft: ml, marginTop: 128, marginBottom: 8, marginRight: mr,
+      marginLeft: ml, marginTop: mt, marginBottom: 8, marginRight: mr,
       style: {fontSize: "10.5px"},
       x: {domain: order, tickRotate: -55, label: null, axis: "top"},
       y: {domain: genes, label: null},
@@ -779,7 +874,9 @@ display((() => {
       doubling. The 30 strongest per direction per condition are stored upstream, which
       is why a condition with thousands of changed genes shows only its strongest.`)}
     ${Plot.plot({
-      height: Math.max(260, top.length * 17 + 56), marginLeft: 124, marginRight: 24,
+      width: PANEL,
+      height: Math.max(260, top.length * 17 + 56),
+      marginLeft: roomFor(top.map((d) => d.gene), {max: 150}), marginRight: 24,
       style: {fontSize: "11px"},
       x: {domain: [-lim, lim], labelAnchor: "center", grid: true,
           label: "log2 fold change, down ← | → up"},
@@ -864,7 +961,9 @@ display((() => {
       median unshrunk log2 fold change over the cell lines where the gene was
       significant.`)}
     ${Plot.plot({
-      height: Math.max(240, top.length * 16 + 54), marginLeft: 116, marginRight: 24,
+      width: PANEL,
+      height: Math.max(240, top.length * 16 + 54),
+      marginLeft: roomFor(top.map((d) => d.gene), {max: 150}), marginRight: 24,
       style: {fontSize: "11px"},
       x: {label: "median log2 fold change, down \u2190 | \u2192 up",
           labelAnchor: "center", grid: true},
@@ -890,58 +989,6 @@ display((() => {
 
 <div class="tab-def span2"><b>Transcription factor activity</b> is inferred rather than measured: a univariate linear model scores each CollecTRI regulon against the differential expression statistics of a contrast, so a positive score denotes coordinated induction of that factor’s annotated targets and a negative score their repression.</div>
 
-<section class="panel span2" data-card="By pathway family">
-  <div class="panel-h">Transcription factor activity by pathway family</div>
-
-```js
-display((() => {
-  const rs = regSummary.filter((r) => doseSet.has(doseKey(r.dose)) && drugSet.has(r.drug));
-  if (!rs.length) return htl.html`<div class="empty" data-why="no scores here">No regulator scores here.</div>`;
-  const byFam = d3.rollups(rs, (v) => d3.median(v, (d) => d.z), (d) => d.family, (d) => d.regulator)
-    .flatMap(([family, v]) => v.map(([regulator, z]) => ({family, regulator, z})));
-  const famOrder = families.map((f) => f.name).filter((n) => byFam.some((d) => d.family === n));
-  const note = new Map(families.map((f) => [f.name, f.note]));
-  const lim = d3.max(byFam, (d) => Math.abs(d.z)) ?? 2;
-  const labelled = d3.rollups(byFam, (v) => [d3.least(v, (d) => d.z), d3.greatest(v, (d) => d.z)],
-    (d) => d.family).flatMap(([, v]) => v).filter((d) => d && Math.abs(d.z) > 0.25);
-  return htl.html`<p class="caption">Inferred activity of each transcription factor,
-      from the coordinated movement of its annotated target genes. Negative values
-      indicate the factor's regulon was repressed, positive that it was induced.
-      Factors are grouped by the signalling pathway whose output they report.</p>
-    ${method(htl.html`decoupleR univariate linear model (ULM) fitted to each condition's
-      unfiltered Wald statistic vector. Network: CollecTRI for human, complexes
-      retained, 1,185 factors over 42,990 edges; minimum regulon size
-      <code>tmin = 15</code>, which leaves ${new Set(rs.map((d) => d.regulator)).size}
-      scorable factors here. NaN statistics are set to zero before fitting. A score is
-      the regression <i>t</i>-value. Each dot takes the median <i>across</i> the
-      ${rs.length.toLocaleString()} selected drug-by-dose scores, each of which is
-      itself a median across cell lines. Note the order: a median over conditions per
-      factor, whereas the test under <b>Genotype Specificity</b> takes a median over a
-      pathway's factors per condition. Grouped by the nine pathways pre-specified in
-      <code>spec/regulator_families.yaml</code>; factors outside them are not shown.`)}
-    ${Plot.plot({
-      height: Math.max(240, famOrder.length * 40 + 58), marginLeft: 150, marginRight: 24,
-      style: {fontSize: "11px"},
-      x: {domain: [-lim, lim], label: "median ULM t, repressed \u2190 | \u2192 activated",
-          labelAnchor: "center", grid: true},
-      y: {domain: famOrder, label: null},
-      color: {type: "diverging", scheme: "RdBu", domain: [-lim, lim], reverse: true, legend: false},
-      marks: [
-        Plot.ruleX([0], {stroke: "currentColor", strokeOpacity: 0.35}),
-        Plot.dot(byFam, {x: "z", y: "family", fill: "z", r: 5,
-                         stroke: "var(--surface)", strokeWidth: 1}),
-        Plot.text(labelled, {x: "z", y: "family", text: "regulator", dy: -11,
-                             fontSize: 10, fill: "var(--color-ink-900)"}),
-        pointerTip(byFam, {x: "z", y: "family", fields: {
-          "": (d) => d.regulator, "Pathway": (d) => d.family,
-          "Reports on": (d) => note.get(d.family) ?? null,
-          "Direction": (d) => d.z < 0 ? "\u2193 repressed" : "\u2191 activated",
-          "Median ULM t": (d) => d.z.toFixed(2)}})
-      ]})}`;
-})())
-```
-</section>
-
 <section class="panel span2" data-card="By drug and pathway">
   <div class="panel-h">Transcription factor activity by drug and pathway</div>
 
@@ -960,8 +1007,9 @@ display((() => {
     .sort((a, b) => b[1] - a[1]).map(([d]) => d);
   const lim = d3.max(cells, (c) => Math.abs(c.z));
   const moa = new Map(drugs.map((d) => [d.drug, d.moa]));
-  const ml = 186, mr = 20;
-  const cw = Math.max(4, Math.min(24, Math.floor((PANEL - ml - mr) / drugOrder.length)));
+  const ml = roomFor(famOrder, {max: 200}), mr = 20;
+  const cw = fitCell(PANEL - ml - mr, drugOrder.length, {min: 4, max: 46});
+  const mt = roomFor(drugOrder, {angle: 55, pad: 14, max: 190});
   return htl.html`<p class="caption">Inferred activity of each pathway's transcription
       factors, per drug. Red denotes induction of the pathway's transcriptional output,
       blue repression. Drugs with matching column profiles perturb the same programmes.
@@ -976,7 +1024,7 @@ display((() => {
     <div class="scrollx">${Plot.plot({
       width: Math.min(PANEL, drugOrder.length * cw + ml + mr),
       height: famOrder.length * 24 + 190,
-      marginLeft: ml, marginTop: 170, marginBottom: 8, marginRight: mr,
+      marginLeft: ml, marginTop: mt, marginBottom: 8, marginRight: mr,
       style: {fontSize: "10.5px"},
       x: {domain: drugOrder, tickRotate: -55, label: null, axis: "top"},
       y: {domain: famOrder, label: null},
@@ -1074,7 +1122,9 @@ display((() => {
       wanted. The dashed rules sit at |<i>t</i>| = 2. This cell line changed
       ${chosen.n_deg.toLocaleString()} genes at a 5% false discovery rate.`)}
     ${Plot.plot({
-      height: Math.max(300, top.length * 17 + 60), marginLeft: 92, marginRight: 168,
+      width: PANEL,
+      height: Math.max(300, top.length * 17 + 60),
+      marginLeft: roomFor(top.map((d) => d.regulator), {max: 120}), marginRight: 168,
       style: {fontSize: "11px"},
       x: {domain: [-lim, lim], labelAnchor: "center", grid: true,
           label: "ULM t vs DMSO control, repressed ← | → activated"},
@@ -1092,6 +1142,60 @@ display((() => {
           "Direction": (d) => d.t > 0 ? "\u2191 activated" : "\u2193 repressed",
           "ULM t vs DMSO": (d) => d.t.toFixed(2)}}),
         Plot.ruleX([0])
+      ]})}`;
+})())
+```
+</section>
+
+<section class="panel span2" data-card="By pathway family">
+  <div class="panel-h">Transcription factor activity by pathway family</div>
+
+```js
+display((() => {
+  const rs = regSummary.filter((r) => doseSet.has(doseKey(r.dose)) && drugSet.has(r.drug));
+  if (!rs.length) return htl.html`<div class="empty" data-why="no scores here">No regulator scores here.</div>`;
+  const byFam = d3.rollups(rs, (v) => d3.median(v, (d) => d.z), (d) => d.family, (d) => d.regulator)
+    .flatMap(([family, v]) => v.map(([regulator, z]) => ({family, regulator, z})));
+  const famOrder = families.map((f) => f.name).filter((n) => byFam.some((d) => d.family === n));
+  const note = new Map(families.map((f) => [f.name, f.note]));
+  const lim = d3.max(byFam, (d) => Math.abs(d.z)) ?? 2;
+  const labelled = d3.rollups(byFam, (v) => [d3.least(v, (d) => d.z), d3.greatest(v, (d) => d.z)],
+    (d) => d.family).flatMap(([, v]) => v).filter((d) => d && Math.abs(d.z) > 0.25);
+  return htl.html`<p class="caption">Inferred activity of each transcription factor,
+      from the coordinated movement of its annotated target genes. Negative values
+      indicate the factor's regulon was repressed, positive that it was induced.
+      Factors are grouped by the signalling pathway whose output they report.</p>
+    ${method(htl.html`decoupleR univariate linear model (ULM) fitted to each condition's
+      unfiltered Wald statistic vector. Network: CollecTRI for human, complexes
+      retained, 1,185 factors over 42,990 edges; minimum regulon size
+      <code>tmin = 15</code>, which leaves ${new Set(rs.map((d) => d.regulator)).size}
+      scorable factors here. NaN statistics are set to zero before fitting. A score is
+      the regression <i>t</i>-value. Each dot takes the median <i>across</i> the
+      ${rs.length.toLocaleString()} selected drug-by-dose scores, each of which is
+      itself a median across cell lines. Note the order: a median over conditions per
+      factor, whereas the test under <b>Genotype Specificity</b> takes a median over a
+      pathway's factors per condition. Grouped by the nine pathways pre-specified in
+      <code>spec/regulator_families.yaml</code>; factors outside them are not shown.`)}
+    ${Plot.plot({
+      width: PANEL,
+      height: Math.max(240, famOrder.length * 40 + 58),
+      marginLeft: roomFor(famOrder, {max: 190}), marginRight: 24,
+      style: {fontSize: "11px"},
+      x: {domain: [-lim, lim], label: "median ULM t, repressed \u2190 | \u2192 activated",
+          labelAnchor: "center", grid: true},
+      y: {domain: famOrder, label: null},
+      color: {type: "diverging", scheme: "RdBu", domain: [-lim, lim], reverse: true, legend: false},
+      marks: [
+        Plot.ruleX([0], {stroke: "currentColor", strokeOpacity: 0.35}),
+        Plot.dot(byFam, {x: "z", y: "family", fill: "z", r: 5,
+                         stroke: "var(--surface)", strokeWidth: 1}),
+        Plot.text(labelled, {x: "z", y: "family", text: "regulator", dy: -11,
+                             fontSize: 10, fill: "var(--color-ink-900)"}),
+        pointerTip(byFam, {x: "z", y: "family", fields: {
+          "": (d) => d.regulator, "Pathway": (d) => d.family,
+          "Reports on": (d) => note.get(d.family) ?? null,
+          "Direction": (d) => d.z < 0 ? "\u2193 repressed" : "\u2191 activated",
+          "Median ULM t": (d) => d.z.toFixed(2)}})
       ]})}`;
 })())
 ```
@@ -1318,7 +1422,9 @@ display((() => {
       <code>src/analysis/verdicts.py</code>. Nothing here picks the best-looking number.
       This table covers all ${drugs.length} drugs, so there is no selection cap.`)}
     ${Plot.plot({
-      height: bars.length * 26 + 46, marginLeft: 232, marginRight: 24,
+      width: PANEL,
+      height: bars.length * 26 + 46,
+      marginLeft: roomFor(bars.map((b) => b.label), {max: 250}), marginRight: 24,
       style: {fontSize: "11.5px"},
       x: {label: "drugs", labelAnchor: "center", grid: true},
       y: {domain: bars.map((b) => b.label), label: null},
@@ -1439,7 +1545,9 @@ display((() => {
       1/C(${bestRow.n_pos + bestRow.n_neg}, ${bestRow.n_pos}) here, so dozens of factors
       tie at that value and <i>p</i> cannot order them.`)}
     ${Plot.plot({
-      height: Math.max(200, d.length * 20 + 56), marginLeft: 92, marginRight: 150,
+      width: PANEL - 2,
+      height: Math.max(200, d.length * 20 + 56),
+      marginLeft: roomFor(d.map((x) => x.regulator), {max: 120}), marginRight: 150,
       style: {fontSize: "11px"},
       x: {domain: [-lim, lim],
           label: "difference in median ULM t, lower in carriers \u2190 | \u2192 higher",

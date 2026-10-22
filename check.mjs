@@ -246,19 +246,45 @@ ck("the first card is the one marked current", (await navOf())[0].here);
 await page.evaluate(() => document.querySelector('.tab[data-tab="tf"]').click());
 await new Promise((r) => setTimeout(r, 2000));
 const tfNav = await navOf();
+// One drug: the comparative card cannot be filled, so it is not on the page at
+// all and the strip lists only what is, in the order the cards appear.
 ck("the strip follows the tab", JSON.stringify(tfNav.map((x) => x.name)) ===
-   JSON.stringify(["By pathway family", "By drug and pathway", "Single condition"]),
+   JSON.stringify(["Single condition", "By pathway family"]),
    JSON.stringify(tfNav.map((x) => x.name)));
-ck("a card the query cannot fill says why", tfNav[1].why === "needs 2+ drugs",
-   JSON.stringify(tfNav[1]));
-// Clicking an entry moves the page to that card and the highlight follows.
-await page.evaluate(() => [...document.querySelectorAll(".cardnav-i")][2].click());
-await new Promise((r) => setTimeout(r, 1200));
-ck("a strip entry jumps to its card", await page.evaluate(() => {
-  const c = document.querySelector('[data-card="Single condition"]:not([hidden])');
-  return scrollY > 200 && Math.abs(c.getBoundingClientRect().top) < 120;
+ck("an unfillable card is gone, not explained", await page.evaluate(() => {
+  const c = document.querySelector('.tabpanel:not([hidden]) [data-card="By drug and pathway"]');
+  return !!c && c.hidden
+      && ![...document.querySelectorAll(".cardnav-i")]
+           .some((a) => /drug and pathway/i.test(a.textContent));
 }));
-ck("the highlight follows the scroll", (await navOf())[2].here);
+// Clicking an entry moves the page to that card and the highlight follows.
+await page.evaluate(() => [...document.querySelectorAll(".cardnav-i")][1].click());
+await new Promise((r) => setTimeout(r, 1200));
+// The last card of a short tab stops where the page ends, so "at the top of
+// what is left" is the most the jump can promise.
+ck("a strip entry jumps to its card", await page.evaluate(() => {
+  const href = [...document.querySelectorAll(".cardnav-i")][1].getAttribute("href");
+  const c = document.querySelector(href).getBoundingClientRect();
+  const atEnd = scrollY + innerHeight >= document.documentElement.scrollHeight - 2;
+  return scrollY > 200 && (Math.abs(c.top) < 120 || (atEnd && c.top < innerHeight / 2));
+}));
+ck("the highlight follows the scroll", (await navOf())[1].here);
+// Jumping from a scrolled page, not only from the top: Framework captures a
+// block's free identifiers by value, so a bare `scrollY` reads 0 forever and
+// every jump from part-way down the page overshoots.
+await page.evaluate(() => document.querySelector('.tab[data-tab="deg"]').click());
+await new Promise((r) => setTimeout(r, 1800));
+await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+await new Promise((r) => setTimeout(r, 500));
+await page.evaluate(() => [...document.querySelectorAll(".cardnav-i")][0].click());
+await new Promise((r) => setTimeout(r, 1300));
+ck("a jump from a scrolled page lands on the card", await page.evaluate(() => {
+  const href = [...document.querySelectorAll(".cardnav-i")][0].getAttribute("href");
+  return Math.abs(document.querySelector(href).getBoundingClientRect().top) < 120;
+}));
+// back to where the next checks expect to be
+await page.evaluate(() => document.querySelector('.tab[data-tab="tf"]').click());
+await new Promise((r) => setTimeout(r, 1500));
 await page.evaluate(() => scrollTo(0, 0));
 await new Promise((r) => setTimeout(r, 400));
 // The tab bar is rebuilt whenever the window width changes; the reader's tab
@@ -278,7 +304,8 @@ ck("no lesion or allele anywhere in the page", await page.evaluate(() =>
 ck("one tab panel visible at a time", await page.evaluate(() =>
   [...document.querySelectorAll(".tabpanel")].filter((p) => !p.hidden)
     .every((p) => p.dataset.tab === document.querySelector(".tab.is-active").dataset.tab)));
-ck("thirteen panels across all tabs", await count(".dash > .panel") === 13);
+// Overview 4, Differential Expression 3, TF 3, Similarity 2, Genotype 2.
+ck("fourteen panels across all tabs", await count(".dash > .panel") === 14);
 // the similarity tab shows gene and TF space side by side, on one ordering
 await page.evaluate(() => document.querySelector('.tab[data-tab="similarity"]').click());
 await new Promise((r) => setTimeout(r, 2500));
@@ -433,8 +460,12 @@ ck("verdict names the genotype", /KRAS p\.G12C/.test(tOv));
 // ck("lineage caveat shown", /tissue of origin cannot be fully separated/i.test(tOv));
 const tSim = await onTab("similarity");
 ck("similarity panel", /profile correlation in expression and regulon space/i.test(tSim));
-ck("neighbours suppressed when a verdict exists",
-   /which is the stronger evidence/i.test(tSim));
+// A card the query cannot fill is taken off the page rather than left standing
+// with a sentence about its own absence.
+ck("neighbours suppressed when a verdict exists", await page.evaluate(() => {
+  const c = document.querySelector('.tabpanel:not([hidden]) [data-card="Nearest drugs"]');
+  return !!c && c.hidden;
+}));
 t = await onTab("association");
 // AUROC is allowed now: the ladder table prints it with its scale explained in
 // the caption below it. What stays banned is the vocabulary of the superseded
@@ -574,8 +605,12 @@ const cells = await page.$$eval("svg [aria-label='cell'] rect", (e) => e.length)
 ck("heatmap drawn", cells > 500, `${cells} cells`);
 // A capped panel must say what to do instead, not just go blank.
 ck("gene panel explains its cap", (await onTab("deg")).includes("capped at 8"));
-ck("similarity declines gracefully",
-   (await onTab("similarity")).includes("capped at 6 drugs"));
+await onTab("similarity");
+ck("similarity declines gracefully", await page.evaluate(() => {
+  const c = document.querySelector('.tabpanel:not([hidden]) [data-card="Correlation matrices"]');
+  const n = document.querySelector('.tabpanel:not([hidden]) [data-card="Nearest drugs"]');
+  return !!c && c.hidden && !!n && !n.hidden;    // capped one gone, the other stands
+}));
 
 // ---- genotype query ----------------------------------------------------
 console.log("\n/results: two drugs, five lines, correlation matrix");
@@ -718,8 +753,11 @@ for (const k of ["overview", "tf", "association"]) {
   const dead = ps.filter((x) => !x.live && !CAPPED.includes(x.h)).map((x) => x.h);
   ck(`${k}: still answers for all 376 drugs`, dead.length === 0, dead.join("; "));
 }
-ck("the capped factor panel explains itself at 376 drugs",
-   /capped at 8/.test(await onTab("tf", false)));
+await onTab("tf", false);
+ck("the capped factor panel is hidden at 376 drugs", await page.evaluate(() => {
+  const c = document.querySelector('.tabpanel:not([hidden]) [data-card="Single condition"]');
+  return !!c && c.hidden;
+}));
 const tAll = await onTab("deg", false);
 ck("gene tab explains its cap rather than going blank",
    /capped at 8/.test(tAll) && /cover every drug/.test(tAll), tAll.slice(0, 300));

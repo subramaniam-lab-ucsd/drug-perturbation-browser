@@ -314,8 +314,20 @@ a.go.is-disabled { background: var(--color-ink-300); pointer-events: none; box-s
         gap: 18px; align-items: start; margin-bottom: 8px; }
 .dash > .panel { margin: 0; min-width: 0; }
 .dash > .span2 { grid-column: 1 / -1; }
+/* A card the query cannot fill is taken out of the flow, so the grid closes up
+   rather than keeping a row for a sentence explaining an absence. */
+.dash > .panel[hidden] { display: none; }
+/* A tall card beside a short one takes both rows of its column, so the pair
+   stacked next to it fills what would otherwise be a column of background. */
+.dash > .rows2 { grid-row: span 2; }
 .dash .panel-h { margin-bottom: 10px; }
 .dash figure, .dash svg { max-width: 100%; }
+/* A figure narrower than its card sits in the middle of it, rather than against
+   the left edge with every pixel of slack on one side. Plot's class is
+   generated per chart, so this matches the wrapper by element; inside .scrollx
+   the max-content floor still wins, so a figure genuinely wider than its card
+   goes on scrolling instead of being squeezed. */
+.dash .panel figure { width: fit-content; max-width: 100%; margin-inline: auto; }
 .dash form { margin: 0 0 12px; font-size: 13.5px; }
 
 .two-up { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
@@ -445,6 +457,8 @@ a.go.is-disabled { background: var(--color-ink-300); pointer-events: none; box-s
 @media (max-width: 1000px) {
   .dash { grid-template-columns: 1fr; }
   .two-up { grid-template-columns: 1fr; }
+  /* one column: a row span would leave an empty row behind it */
+  .dash > .rows2 { grid-row: auto; }
 }
 
 /* ---- multi-select: chips in the trigger ---------------------------------- */
