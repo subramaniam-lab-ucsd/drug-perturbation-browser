@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="generator" content="Observable Framework v1.13.4">
+<title>About the data | Drug Perturbation Browser</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&amp;display=swap" crossorigin>
+<link rel="preload" as="style" href="./_import/style.be161e42.css">
+<link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&amp;display=swap" crossorigin>
+<link rel="stylesheet" type="text/css" href="./_import/style.be161e42.css">
+<link rel="modulepreload" href="./_observablehq/client.81ed970e.js">
+<link rel="modulepreload" href="./_observablehq/runtime.fa9f71c0.js">
+<link rel="modulepreload" href="./_observablehq/stdlib.bf44e467.js">
+<link rel="modulepreload" href="./_import/components/util.cb1c3b50.js">
+<link rel="modulepreload" href="./_npm/htl@1.0.0/11521f02.js">
+<link rel="modulepreload" href="./_npm/apache-arrow@21.2.0/b9fc0486.js">
+<link rel="modulepreload" href="./_npm/tslib@2.8.1/396b382b.js">
+<link rel="modulepreload" href="./_npm/flatbuffers@25.9.23/c8db6147.js">
+<meta name="color-scheme" content="light"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%253D%22http%253A//www.w3.org/2000/svg%22%20viewBox%253D%220%200%2032%2032%22%3E%3Crect%20width%253D%2232%22%20height%253D%2232%22%20rx%253D%227%22%20fill%253D%22%25230072B2%22/%3E%3Crect%20x%253D%227%22%20y%253D%2218%22%20width%253D%224%22%20height%253D%228%22%20rx%253D%222%22%20fill%253D%22%2523fff%22%20opacity%253D%22.85%22/%3E%3Crect%20x%253D%2214%22%20y%253D%2212%22%20width%253D%224%22%20height%253D%2214%22%20rx%253D%222%22%20fill%253D%22%2523fff%22%20opacity%253D%22.85%22/%3E%3Crect%20x%253D%2221%22%20y%253D%226%22%20width%253D%224%22%20height%253D%2220%22%20rx%253D%222%22%20fill%253D%22%2523D55E00%22/%3E%3C/svg%3E">
+<script type="module">
+
+import {define} from "./_observablehq/client.81ed970e.js";
+import {registerFile} from "./_observablehq/stdlib.bf44e467.js";
+
+registerFile("./data/celllines.arrow", {"name":"./data/celllines.arrow","path":"./_file/data/celllines.4f8632b6.arrow","lastModified":1792521393374,"size":10194});
+registerFile("./data/drivers.arrow", {"name":"./data/drivers.arrow","path":"./_file/data/drivers.cc002a9d.arrow","lastModified":1791839888950,"size":19850});
+registerFile("./data/drugs.arrow", {"name":"./data/drugs.arrow","path":"./_file/data/drugs.a9e65ae3.arrow","lastModified":1792521393374,"size":26010});
+registerFile("./data/families.json", {"name":"./data/families.json","mimeType":"application/json","path":"./_file/data/families.fd626f44.json","lastModified":1791839895085,"size":2208});
+registerFile("./data/manifest.json", {"name":"./data/manifest.json","mimeType":"application/json","path":"./_file/data/manifest.3349dcb5.json","lastModified":1791839895951,"size":722});
+
+define({id: "4b453202", inputs: ["FileAttachment"], outputs: ["manifest","familiesJ","celllinesT","drugsT","driversT"], body: (FileAttachment) => {
+const manifest = FileAttachment("./data/manifest.json").json();
+const familiesJ = FileAttachment("./data/families.json").json();
+const celllinesT = FileAttachment("./data/celllines.arrow").arrow();
+const drugsT = FileAttachment("./data/drugs.arrow").arrow();
+const driversT = FileAttachment("./data/drivers.arrow").arrow();
+return {manifest,familiesJ,celllinesT,drugsT,driversT};
+}});
+
+define({id: "6cd0dfe3", inputs: ["manifest","familiesJ","celllinesT","drugsT","driversT"], outputs: ["rows","S","families","lines","drugs","drivers"], body: async (manifest,familiesJ,celllinesT,drugsT,driversT) => {
+const {rows} = await import("./_import/components/util.cb1c3b50.js");
+const S = manifest.sources, families = familiesJ;
+const lines = rows(celllinesT), drugs = rows(drugsT), drivers = rows(driversT);
+return {rows,S,families,lines,drugs,drivers};
+}});
+
+define({id: "ec84f997", inputs: ["display","htl","drugs","lines","S"], body: (display,htl,drugs,lines,S) => {
+display(htl.html`<div class="cards">
+  <div class="card"><div class="k">Drugs</div><div class="v">${drugs.length}</div>
+    <div class="n">small molecules, most with an annotated mechanism</div></div>
+  <div class="card"><div class="k">Cell lines</div><div class="v">${lines.length}</div>
+    <div class="n">${new Set(lines.map((l) => l.organ)).size} tissues of origin</div></div>
+  <div class="card"><div class="k">Concentrations</div><div class="v">3</div>
+    <div class="n">0.05, 0.5 and 5 µM</div></div>
+  <div class="card"><div class="k">Measurements</div>
+    <div class="v">${S.n_conditions_fitted.toLocaleString()}</div>
+    <div class="n">of ${S.n_conditions_total.toLocaleString()} attempted; the rest had
+    too few cells to fit</div></div>
+</div>`)
+}});
+
+define({id: "9c58d769", inputs: ["display","htl","S","families"], body: (display,htl,S,families) => {
+display(htl.html`<p class="caption">${S.n_regulators} transcription factors are
+  scored. Those with a well-understood readout are grouped into
+  ${families.length} pathways:</p>
+  <div class="fam-grid">${families.map((f) => htl.html`<div class="fam">
+    <h4>${f.name}</h4><p>${f.note}</p>
+    <p class="fam-m">${f.members.slice(0, 10).join(", ")}${f.members.length > 10
+      ? `, and ${f.members.length - 10} more` : ""}</p></div>`)}</div>`)
+}});
+
+define({id: "79fcc2d5", inputs: ["display","htl","drivers"], body: (display,htl,drivers) => {
+display(htl.html`<p>Each line carries an annotation of the cancer driver genes
+  mutated in it: ${new Set(drivers.map((d) => d.gene)).size} genes across
+  ${new Set(drivers.map((d) => d.cell_line)).size} lines. This is what lets you ask
+  for, say, the KRAS-mutant lines, and what the results page uses to mark the lines
+  carrying a drug's own target.</p>`)
+}});
+
+define({id: "64371df9", inputs: ["display","htl","S","manifest"], body: (display,htl,S,manifest) => {
+display(htl.html`<div class="scrollx"><table class="prov">
+  <tbody>
+    <tr><th>Differential expression</th><td><code>${S.de_h5}</code></td></tr>
+    <tr><th>Transcription-factor activity</th><td><code>${S.tf_h5}</code></td></tr>
+    <tr><th>Cell line annotation</th><td><code>${S.line_meta}</code></td></tr>
+    <tr><th>Drug annotation</th><td><code>${S.drug_meta}</code></td></tr>
+    <tr><th>Sample annotation</th><td><code>${S.sample_meta}</code></td></tr>
+    <tr><th>Genes changed</th><td>${S.deg_measure}</td></tr>
+    <tr><th>Pathway score</th><td>${S.tf_measure}</td></tr>
+    <tr><th>Built</th><td>${manifest.built_at.replace("T", " ")} ·
+      <code>${manifest.git_sha_short}</code>${manifest.git_dirty ? " (uncommitted changes)" : ""}</td></tr>
+  </tbody>
+</table></div>`)
+}});
+
+</script>
+</head>
+<body>
+<div id="observablehq-center">
+<header id="observablehq-header">
+
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="./">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7.5" fill="var(--color-brand-600)"></rect><rect x="7" y="19" width="4" height="7" rx="2" fill="#fff" opacity=".55"></rect><rect x="14" y="13" width="4" height="13" rx="2" fill="#fff" opacity=".8"></rect><rect x="21" y="6" width="4" height="20" rx="2" fill="var(--color-accent-500)"></rect></svg>
+      <span class="brand-text">Drug Perturbation <span>Browser</span></span>
+    </a>
+    <nav class="topnav-links">
+      <a href="./" class="">Query</a><a href="./statistics" class="">Datasets</a><a href="./about" class="is-active">About</a>
+    </nav>
+    <a class="topnav-cta" href="./">Run a query</a>
+  </div>
+</header>
+</header>
+<main id="observablehq-main" class="observablehq">
+<div class="shell">
+<div class="observablehq observablehq--block"><!--:4b453202:--></div>
+<div class="observablehq observablehq--block"><!--:6cd0dfe3:--></div>
+<div class="page-head">
+  <h1>About the data</h1>
+  <p class="lede">What the browser contains, how each quantity was derived, and the
+  inferences it does not support.</p>
+</div>
+<h2 id="the-dataset" tabindex="-1"><a class="observablehq-header-anchor" href="#the-dataset">The dataset</a></h2>
+<p>Tahoe-100M: single-cell RNA sequencing of human cancer cell lines, each treated
+with one small molecule at one of three concentrations, pooled many lines to a
+plate.</p>
+<div class="observablehq observablehq--block"><observablehq-loading></observablehq-loading><!--:ec84f997:--></div>
+<h2 id="how-differential-expression-is-measured" tabindex="-1"><a class="observablehq-header-anchor" href="#how-differential-expression-is-measured">How differential expression is measured</a></h2>
+<p>For one drug in one cell line at one concentration:</p>
+<ul>
+<li>The cells are pooled into a single expression profile per well.</li>
+<li>That well is compared against <strong>every untreated DMSO control well of the same
+cell line</strong>, with the plate accounted for, so a plate effect is not read as a drug
+effect.</li>
+<li>A gene counts as changed when it clears a 5% false-discovery rate. "Genes
+changed" everywhere on this site is that count.</li>
+<li>The direction and size of each gene's change is its log2 fold change: +1 means
+twice as much, −1 means half as much.</li>
+</ul>
+<p>Nothing on this site compares a well against a DMSO control well from a different
+cell line, and nothing is compared across plates.</p>
+<h2 id="how-transcription-factor-activity-is-inferred" tabindex="-1"><a class="observablehq-header-anchor" href="#how-transcription-factor-activity-is-inferred">How transcription factor activity is inferred</a></h2>
+<p>Counting genes says how much happened, not what. For that, each gene's change is
+mapped onto the transcription factors known to control it, using CollecTRI
+regulons, giving one score per factor per measurement. A positive score means the
+factor's target genes went up together, which is what a factor being switched on
+looks like in RNA.</p>
+<div class="observablehq observablehq--block"><observablehq-loading></observablehq-loading><!--:9c58d769:--></div>
+<p>Factors outside these groups are still scored and still appear in results, under
+"other".</p>
+<h2 id="genotype-annotation" tabindex="-1"><a class="observablehq-header-anchor" href="#genotype-annotation">Genotype annotation</a></h2>
+<div class="observablehq observablehq--block"><observablehq-loading></observablehq-loading><!--:79fcc2d5:--></div>
+<h2 id="what-this-cannot-tell-you" tabindex="-1"><a class="observablehq-header-anchor" href="#what-this-cannot-tell-you">What this cannot tell you</a></h2>
+<ul>
+<li><strong>Not potency.</strong> Genes changed is a count of what moved, not an IC50. A drug
+can kill cells while changing few genes, and change thousands without killing
+anything.</li>
+<li><strong>Not mechanism, by itself.</strong> A pathway score moving tells you that pathway's
+output changed. It does not establish that the drug acted through it.</li>
+<li><strong>Not a clean causal claim from a genotype split.</strong> When mutant lines respond
+more strongly, the mutation is one of many things those lines differ in, tissue
+of origin included.</li>
+<li><strong>No growth, viability or protein measurement.</strong> RNA only.</li>
+</ul>
+<h2 id="provenance" tabindex="-1"><a class="observablehq-header-anchor" href="#provenance">Provenance</a></h2>
+<div class="observablehq observablehq--block"><observablehq-loading></observablehq-loading><!--:64371df9:--></div>
+</div>
+</main>
+<footer id="observablehq-footer">
+<div><div class="shell site-footer">
+    <div>
+      <strong>Drug Perturbation Browser</strong>
+      <p>Differential expression and transcription factor activity in pooled
+      chemical-perturbation atlases. Currently Tahoe-100M.</p>
+    </div>
+    <nav>
+      <a href="./">Query</a>
+      <a href="./statistics">Datasets</a>
+      <a href="./about">About</a>
+    </nav>
+  </div></div>
+</footer>
+</div>
+</body>
+</html>

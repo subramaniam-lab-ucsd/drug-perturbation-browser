@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="generator" content="Observable Framework v1.13.4">
+<title>Drug Perturbation Browser</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&amp;display=swap" crossorigin>
+<link rel="preload" as="style" href="./_import/style.be161e42.css">
+<link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&amp;display=swap" crossorigin>
+<link rel="stylesheet" type="text/css" href="./_import/style.be161e42.css">
+<link rel="modulepreload" href="./_observablehq/client.81ed970e.js">
+<link rel="modulepreload" href="./_observablehq/runtime.fa9f71c0.js">
+<link rel="modulepreload" href="./_observablehq/stdlib.bf44e467.js">
+<link rel="modulepreload" href="./_import/components/util.cb1c3b50.js">
+<link rel="modulepreload" href="./_import/components/query.94189215.js">
+<link rel="modulepreload" href="./_import/components/multibox.d1005597.js">
+<link rel="modulepreload" href="./_import/components/icons.fb9c101c.js">
+<link rel="modulepreload" href="./_npm/d3@7.9.0/080cf928.js">
+<link rel="modulepreload" href="./_npm/htl@1.0.0/11521f02.js">
+<link rel="modulepreload" href="./_npm/@observablehq/plot@0.6.17/93ce672e.js">
+<link rel="modulepreload" href="./_npm/apache-arrow@21.2.0/b9fc0486.js">
+<link rel="modulepreload" href="./_npm/d3-array@3.2.4/b8e751b6.js">
+<link rel="modulepreload" href="./_npm/d3-axis@3.0.0/c662ea05.js">
+<link rel="modulepreload" href="./_npm/d3-brush@3.0.0/d162d8c6.js">
+<link rel="modulepreload" href="./_npm/d3-chord@3.0.1/5cedd0be.js">
+<link rel="modulepreload" href="./_npm/d3-color@3.1.0/65d51007.js">
+<link rel="modulepreload" href="./_npm/d3-contour@4.0.2/c576a91a.js">
+<link rel="modulepreload" href="./_npm/d3-delaunay@6.0.4/8b43826d.js">
+<link rel="modulepreload" href="./_npm/d3-dispatch@3.0.1/3fb06f14.js">
+<link rel="modulepreload" href="./_npm/d3-drag@3.0.0/20b76948.js">
+<link rel="modulepreload" href="./_npm/d3-dsv@3.0.1/097745a2.js">
+<link rel="modulepreload" href="./_npm/d3-ease@3.0.1/8683b012.js">
+<link rel="modulepreload" href="./_npm/d3-fetch@3.0.1/5c319046.js">
+<link rel="modulepreload" href="./_npm/d3-force@3.0.0/33924f3e.js">
+<link rel="modulepreload" href="./_npm/d3-format@3.1.2/8d67a1ae.js">
+<link rel="modulepreload" href="./_npm/d3-geo@3.1.1/8037bd0b.js">
+<link rel="modulepreload" href="./_npm/d3-hierarchy@3.1.2/a9ba0229.js">
+<link rel="modulepreload" href="./_npm/d3-interpolate@3.0.1/e0a47f97.js">
+<link rel="modulepreload" href="./_npm/d3-path@3.1.0/f9e9e0ab.js">
+<link rel="modulepreload" href="./_npm/d3-polygon@3.0.1/2da8eb3b.js">
+<link rel="modulepreload" href="./_npm/d3-quadtree@3.0.1/09002e01.js">
+<link rel="modulepreload" href="./_npm/d3-random@3.0.1/5108797c.js">
+<link rel="modulepreload" href="./_npm/d3-scale@4.0.2/c9f2571b.js">
+<link rel="modulepreload" href="./_npm/d3-scale-chromatic@3.1.0/f3c78e0d.js">
+<link rel="modulepreload" href="./_npm/d3-selection@3.0.0/28717d05.js">
+<link rel="modulepreload" href="./_npm/d3-shape@3.2.0/7c6e2a50.js">
+<link rel="modulepreload" href="./_npm/d3-time@3.1.0/3d1d57c6.js">
+<link rel="modulepreload" href="./_npm/d3-time-format@4.1.0/643581a8.js">
+<link rel="modulepreload" href="./_npm/d3-timer@3.0.1/e99232db.js">
+<link rel="modulepreload" href="./_npm/d3-transition@3.0.1/bd07fd9a.js">
+<link rel="modulepreload" href="./_npm/d3-zoom@3.0.0/d09f7cc9.js">
+<link rel="modulepreload" href="./_npm/isoformat@0.2.1/604cb63b.js">
+<link rel="modulepreload" href="./_npm/interval-tree-1d@1.0.4/f53f17b2.js">
+<link rel="modulepreload" href="./_npm/tslib@2.8.1/396b382b.js">
+<link rel="modulepreload" href="./_npm/flatbuffers@25.9.23/c8db6147.js">
+<link rel="modulepreload" href="./_npm/internmap@2.0.3/af036d7e.js">
+<link rel="modulepreload" href="./_npm/delaunator@5.1.0/7b06abe7.js">
+<link rel="modulepreload" href="./_npm/binary-search-bounds@2.0.5/5f640032.js">
+<link rel="modulepreload" href="./_npm/robust-predicates@3.0.3/b42f30a7.js">
+<meta name="color-scheme" content="light"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%253D%22http%253A//www.w3.org/2000/svg%22%20viewBox%253D%220%200%2032%2032%22%3E%3Crect%20width%253D%2232%22%20height%253D%2232%22%20rx%253D%227%22%20fill%253D%22%25230072B2%22/%3E%3Crect%20x%253D%227%22%20y%253D%2218%22%20width%253D%224%22%20height%253D%228%22%20rx%253D%222%22%20fill%253D%22%2523fff%22%20opacity%253D%22.85%22/%3E%3Crect%20x%253D%2214%22%20y%253D%2212%22%20width%253D%224%22%20height%253D%2214%22%20rx%253D%222%22%20fill%253D%22%2523fff%22%20opacity%253D%22.85%22/%3E%3Crect%20x%253D%2221%22%20y%253D%226%22%20width%253D%224%22%20height%253D%2220%22%20rx%253D%222%22%20fill%253D%22%2523D55E00%22/%3E%3C/svg%3E">
+<script type="module">
+
+import {define} from "./_observablehq/client.81ed970e.js";
+import {registerFile} from "./_observablehq/stdlib.bf44e467.js";
+
+registerFile("./data/celllines.arrow", {"name":"./data/celllines.arrow","path":"./_file/data/celllines.4f8632b6.arrow","lastModified":1792521393374,"size":10194});
+registerFile("./data/conditions.arrow", {"name":"./data/conditions.arrow","path":"./_file/data/conditions.c72f71ec.arrow","lastModified":1791839888062,"size":849658});
+registerFile("./data/drivers.arrow", {"name":"./data/drivers.arrow","path":"./_file/data/drivers.cc002a9d.arrow","lastModified":1791839888950,"size":19850});
+registerFile("./data/drugs.arrow", {"name":"./data/drugs.arrow","path":"./_file/data/drugs.a9e65ae3.arrow","lastModified":1792521393374,"size":26010});
+registerFile("./data/verdicts.arrow", {"name":"./data/verdicts.arrow","path":"./_file/data/verdicts.e4ae7704.arrow","lastModified":1791839894240,"size":24122});
+
+define({id: "b566f6a6", inputs: ["FileAttachment"], outputs: ["drugsT","celllinesT","driversT","conditionsT","verdictsT"], body: (FileAttachment) => {
+const drugsT = FileAttachment("./data/drugs.arrow").arrow();
+const celllinesT = FileAttachment("./data/celllines.arrow").arrow();
+const driversT = FileAttachment("./data/drivers.arrow").arrow();
+const conditionsT = FileAttachment("./data/conditions.arrow").arrow();
+const verdictsT = FileAttachment("./data/verdicts.arrow").arrow();
+return {drugsT,celllinesT,driversT,conditionsT,verdictsT};
+}});
+
+define({id: "e9f91421", inputs: ["drugsT","celllinesT","driversT","conditionsT","verdictsT","d3","URLSearchParams","location"], outputs: ["rows","decode","encode","DOSES","multiBox","organIcon","drugs","lines","drivers","cond","verdicts","moas","organs","linesWithGene","linesWithGenotype","genes","genotypes","nameOf","back"], body: async (drugsT,celllinesT,driversT,conditionsT,verdictsT,d3,URLSearchParams,location) => {
+const [{rows}, {decode, encode, DOSES}, {multiBox}, {organIcon}] = await Promise.all([import("./_import/components/util.cb1c3b50.js"), import("./_import/components/query.94189215.js"), import("./_import/components/multibox.d1005597.js"), import("./_import/components/icons.fb9c101c.js")]);
+
+const drugs = rows(drugsT), lines = rows(celllinesT);
+const drivers = rows(driversT), cond = rows(conditionsT), verdicts = rows(verdictsT);
+
+const moas = Array.from(d3.rollup(drugs.filter((d) => d.moa), (v) => v.length, (d) => d.moa))
+  .sort((a, b) => b[1] - a[1]);
+const organs = Array.from(d3.rollup(lines, (v) => v.length, (l) => l.organ))
+  .sort((a, b) => b[1] - a[1]);
+const linesWithGene = d3.rollup(drivers, (v) => Array.from(new Set(v.map((d) => d.cell_line))),
+                                (d) => d.gene);
+const linesWithGenotype = d3.rollup(drivers.filter((d) => d.protein_change),
+  (v) => Array.from(new Set(v.map((d) => d.cell_line))), (d) => `${d.gene} ${d.protein_change}`);
+const genes = Array.from(linesWithGene).filter(([, v]) => v.length >= 3)
+  .sort((a, b) => b[1].length - a[1].length);
+const genotypes = Array.from(linesWithGenotype).filter(([, v]) => v.length >= 3)
+  .sort((a, b) => b[1].length - a[1].length);
+const nameOf = new Map(lines.map((l) => [l.cell_line, l.name]));
+
+// "Edit query" comes back here carrying the query it was showing, so the form
+// opens on that selection rather than empty. Without this the only way back
+// from a result was to rebuild the query by hand.
+//
+// The absent parameter means "everything", which is the form's own empty
+// state, so it must stay empty rather than filling with all 376 chips: read
+// the raw parameters to tell "all drugs" from "these drugs". The values
+// themselves come from decode(), which drops any the data does not know.
+const back = (() => {
+  const p = new URLSearchParams(location.search);
+  const q = decode(location.search, {drugMeta: drugs, lineMeta: lines});
+  return {
+    drugs: p.get("d") ? q.drugs.map((d) => d.drug) : [],
+    lines: p.get("l") ? q.lines.map((l) => l.cell_line) : [],
+    // one concentration at a time here, so a multi-dose result edits as its first
+    dose: q.allDoses ? "0.5" : String(q.doses[0])
+  };
+})();
+return {rows,decode,encode,DOSES,multiBox,organIcon,drugs,lines,drivers,cond,verdicts,moas,organs,linesWithGene,linesWithGenotype,genes,genotypes,nameOf,back};
+}});
+
+define({id: "816c78f6", inputs: ["linesWithGene","linesWithGenotype","lines","drugs","multiBox","moas","back","Generators","genotypes","genes","organs","htl","organIcon","DOSES","Event"], outputs: ["expandLine","expandDrug","drugBox","drugSel","lineBox","lineSel","doseBox","doseSel"], body: (linesWithGene,linesWithGenotype,lines,drugs,multiBox,moas,back,Generators,genotypes,genes,organs,htl,organIcon,DOSES,Event) => {
+// Groups are shortcuts into the same flat list: picking "KRAS mutant" adds the
+// lines, not a filter the rest of the app would have to carry.
+const expandLine = (v) =>
+  v.startsWith("gene:") ? linesWithGene.get(v.slice(5))
+  : v.startsWith("genotype:") ? linesWithGenotype.get(v.slice(7))
+  : v.startsWith("organ:") ? lines.filter((l) => l.organ === v.slice(6)).map((l) => l.cell_line)
+  : null;
+const expandDrug = (v) =>
+  v.startsWith("moa:") ? drugs.filter((d) => d.moa === v.slice(4)).map((d) => d.drug) : null;
+
+const drugBox = multiBox([
+  ["By mechanism", moas.map(([m, n]) => [`moa:${m}`, m, `${n} drugs`])],
+  ["By drug", drugs.slice().sort((a, b) => a.drug.localeCompare(b.drug))
+     .map((d) => [d.drug, d.drug, d.moa ?? ""])]
+], {value: back.drugs, expand: expandDrug, emptyLabel: `All ${drugs.length} drugs`,
+    placeholder: "Search drugs or mechanisms…", ariaLabel: "Drugs"});
+const drugSel = Generators.input(drugBox);
+
+const lineBox = multiBox([
+  ["By genotype", genotypes.map(([a, v]) => [`genotype:${a}`, a, `${v.length} lines`])],
+  ["By mutated gene", genes.map(([g, v]) => [`gene:${g}`, `${g} mutant`, `${v.length} lines`])],
+  ["By tissue", organs.map(([o, n]) =>
+     [`organ:${o}`, htl.html`<span class="organ">${organIcon(o)}${o}</span>`, `${n} lines`])],
+  ["By cell line", lines.slice().sort((a, b) => a.name.localeCompare(b.name))
+     .map((l) => [l.cell_line, l.name, l.organ])]
+], {value: back.lines, expand: expandLine, emptyLabel: `All ${lines.length} cell lines`,
+    placeholder: "Search cell lines, genotypes, genes or tissues…", ariaLabel: "Cell lines"});
+const lineSel = Generators.input(lineBox);
+
+// One concentration at a time. Pooling doses takes a median over a ten-fold
+// spread, which is a number no single condition resembles.
+const doseBox = htl.html`<div class="seg" role="radiogroup" aria-label="Concentration">
+  ${DOSES.map((d) => htl.html`<button type="button" class="seg-b" data-v=${d}>${d} µM</button>`)}
+</div>`;
+{
+  let v = back.dose;
+  const paint = () => doseBox.querySelectorAll(".seg-b")
+    .forEach((b) => b.classList.toggle("is-on", b.dataset.v === v));
+  doseBox.querySelectorAll(".seg-b").forEach((b) => b.onclick = () => {
+    v = b.dataset.v; paint();
+    doseBox.dispatchEvent(new Event("input", {bubbles: true}));
+  });
+  Object.defineProperty(doseBox, "value", {get: () => v});
+  paint();
+}
+const doseSel = Generators.input(doseBox);
+return {expandLine,expandDrug,drugBox,drugSel,lineBox,lineSel,doseBox,doseSel};
+}});
+
+define({id: "54d49fb9", inputs: ["display","htl","drugBox","lineBox","doseBox"], body: (display,htl,drugBox,lineBox,doseBox) => {
+display(htl.html`<div class="q-grid">
+  <div class="q-field"><span class="q-label">Drugs</span>${drugBox}</div>
+  <div class="q-field"><span class="q-label">Cell lines</span>${lineBox}</div>
+  <div class="q-field q-dose"><span class="q-label">Concentration</span>${doseBox}</div>
+</div>`)
+}});
+
+define({id: "96413fb7", inputs: ["drugSel","drugs","lineSel","lines","encode","doseSel"], outputs: ["nDrugs","nLines","href"], body: (drugSel,drugs,lineSel,lines,encode,doseSel) => {
+const nDrugs = drugSel.length || drugs.length;
+const nLines = lineSel.length || lines.length;
+const href = "./results?" + encode({drugs: drugSel, lines: lineSel,
+                                    doses: [Number(doseSel)]});
+return {nDrugs,nLines,href};
+}});
+
+define({id: "8e3b99e8", inputs: ["display","htl","href","nDrugs","nLines","doseSel"], body: (display,htl,href,nDrugs,nLines,doseSel) => {
+display(htl.html`<div class="q-actions">
+  <a class="go" href=${href}>Show results</a>
+  <span class="q-count">${nDrugs.toLocaleString()} drug${nDrugs === 1 ? "" : "s"} ×
+    ${nLines} cell line${nLines === 1 ? "" : "s"} at ${doseSel} µM</span>
+</div>`)
+}});
+
+define({id: "939ad6ee", inputs: ["verdicts","linesWithGenotype","drugs","display","htl","encode"], outputs: ["examples"], body: (verdicts,linesWithGenotype,drugs,display,htl,encode) => {
+// Starting points taken from the data: the drug whose effect is tied to one
+// genotype, and the three with the largest transcriptional response.
+const examples = (() => {
+  const out = [];
+  const hit = verdicts.find((v) => v.verdict === "specific_genotype");
+  if (hit) out.push({drug: hit.drug, note: `needs ${hit.genotype.replace(":", " ")}`,
+                     lines: (linesWithGenotype.get(hit.genotype.replace(":", " ")) ?? [])});
+  for (const d of drugs.slice().sort((a, b) => b.median_deg - a.median_deg).slice(0, 3))
+    out.push({drug: d.drug,
+              note: `${Math.round(d.median_deg).toLocaleString()} DE genes, median line`,
+              lines: []});
+  return out;
+})();
+display(htl.html`<div class="examples">
+  <span class="examples-k">Start with</span>
+  ${examples.map((e) => htl.html`<a class="chip"
+     href=${"./results?" + encode({drugs: [e.drug], lines: e.lines, doses: [0.5]})}>
+     ${e.drug}<span>${e.note}</span></a>`)}
+</div>`)
+return {examples};
+}});
+
+</script>
+</head>
+<body>
+<div id="observablehq-center">
+<header id="observablehq-header">
+
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="./">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7.5" fill="var(--color-brand-600)"></rect><rect x="7" y="19" width="4" height="7" rx="2" fill="#fff" opacity=".55"></rect><rect x="14" y="13" width="4" height="13" rx="2" fill="#fff" opacity=".8"></rect><rect x="21" y="6" width="4" height="20" rx="2" fill="var(--color-accent-500)"></rect></svg>
+      <span class="brand-text">Drug Perturbation <span>Browser</span></span>
+    </a>
+    <nav class="topnav-links">
+      <a href="./" class="is-active">Query</a><a href="./statistics" class="">Datasets</a><a href="./about" class="">About</a>
+    </nav>
+    <a class="topnav-cta" href="./">Run a query</a>
+  </div>
+</header>
+</header>
+<main id="observablehq-main" class="observablehq">
+<div class="shell home">
+<div class="observablehq observablehq--block"><!--:b566f6a6:--></div>
+<div class="observablehq observablehq--block"><!--:e9f91421:--></div>
+<div class="home-head">
+  <div class="logo-lockup">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7.5" fill="var(--color-brand-600)"></rect><rect x="7" y="19" width="4" height="7" rx="2" fill="#fff" opacity=".55"></rect><rect x="14" y="13" width="4" height="13" rx="2" fill="#fff" opacity=".8"></rect><rect x="21" y="6" width="4" height="20" rx="2" fill="var(--color-accent-500)"></rect></svg>
+    <span class="brand-text">Drug Perturbation <span>Browser</span></span>
+  </div>
+</div>
+<div class="observablehq observablehq--block"><!--:816c78f6:--></div>
+<div class="query">
+<div class="observablehq observablehq--block"><observablehq-loading></observablehq-loading><!--:54d49fb9:--></div>
+<div class="observablehq observablehq--block"><!--:96413fb7:--></div>
+<div class="observablehq observablehq--block"><observablehq-loading></observablehq-loading><!--:8e3b99e8:--></div>
+</div>
+<div class="observablehq observablehq--block"><!--:939ad6ee:--></div>
+<div class="home-links">
+  <a class="tile" href="./statistics">
+    <span class="tile-k">Datasets</span><span class="tile-t">Tahoe-100M</span>
+    <span class="tile-n">52,374 drug-by-cell-line contrasts across 376 small molecules,
+    48 human cancer cell lines and three concentrations. Transcriptional potency by
+    drug, intrinsic responsiveness by cell line, and transcription factor activity
+    across the panel.</span></a>
+  <a class="tile" href="./about">
+    <span class="tile-k">About</span><span class="tile-t">Methods and provenance</span>
+    <span class="tile-n">How each contrast was derived: DESeq2 against untreated DMSO
+    controls, CollecTRI regulon activity, DepMap genotype annotation, and the
+    inferences the data does not support.</span></a>
+</div>
+</div>
+</main>
+<footer id="observablehq-footer">
+<div><div class="shell site-footer">
+    <div>
+      <strong>Drug Perturbation Browser</strong>
+      <p>Differential expression and transcription factor activity in pooled
+      chemical-perturbation atlases. Currently Tahoe-100M.</p>
+    </div>
+    <nav>
+      <a href="./">Query</a>
+      <a href="./statistics">Datasets</a>
+      <a href="./about">About</a>
+    </nav>
+  </div></div>
+</footer>
+</div>
+</body>
+</html>
